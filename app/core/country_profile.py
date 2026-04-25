@@ -22,6 +22,7 @@ _CONFIG_DIR = _ROOT / "config"
 # Registry of known context configs: (country_code, context_tag) -> filename
 _PROFILE_REGISTRY: dict[tuple[str, str], str] = {
     ("GH", "urban_informal"): "ghana_urban_informal.json",
+    ("AM", "urban_informal"): "armenia_urban_informal.json",
 }
 
 

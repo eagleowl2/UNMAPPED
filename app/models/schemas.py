@@ -1,75 +1,105 @@
 """
 Pydantic v2 request/response models for the SSE API.
+
+Request/response shape matches the frontend contract in docs/api-contract.md
+and frontend/src/lib/types.ts exactly.
 """
 from __future__ import annotations
 
-from typing import Any, Optional
-from pydantic import BaseModel, Field, field_validator
+from typing import Any, Literal, Optional
+from pydantic import BaseModel, Field, field_validator, model_validator
 
+
+# ---------------------------------------------------------------------------
+# Request
+# ---------------------------------------------------------------------------
 
 class ParseRequest(BaseModel):
-    """POST /parse — single chaotic text input."""
-    text: str = Field(
+    """
+    POST /parse — frontend contract.
+    Field names mirror frontend/src/lib/types.ts ParseRequest exactly.
+    """
+    raw_input: str = Field(
         ...,
         min_length=3,
-        max_length=5000,
-        description="Any unstructured personal/professional text in any language.",
-        examples=["My name is Amara, I fix phones in Accra, speak Twi English Ga, learned coding on YouTube"],
+        max_length=8000,
+        description="Free-form chaotic input in any language.",
+        examples=["My name is Amara, I fix phones in Accra, speak Twi English Ga"],
     )
-    country_code: str = Field(
-        default="GH",
-        min_length=2,
-        max_length=2,
-        description="ISO 3166-1 alpha-2 country code for context.",
+    country: Literal["GH", "AM"] = Field(
+        ...,
+        description="Country profile: GH (Ghana) or AM (Armenia).",
     )
-    context_tag: str = Field(
-        default="urban_informal",
-        description="Context tag matching a loaded country profile.",
+    language_hint: Optional[str] = Field(
+        default=None,
+        description="Optional ISO 639-1 language hint; backend may auto-detect.",
     )
 
-    @field_validator("country_code")
+    @field_validator("country", mode="before")
     @classmethod
     def upper_country(cls, v: str) -> str:
         return v.upper()
 
 
-class GenerateVSSRequest(BaseModel):
-    """POST /generate_vss — generate VSS from already-parsed output."""
-    user: dict[str, Any] = Field(..., description="USER entity dict from /parse response.")
-    skills: list[dict[str, Any]] = Field(..., min_length=1, description="SKILL entities from /parse response.")
-    country_code: str = Field(default="GH")
-    context_tag: str = Field(default="urban_informal")
+# ---------------------------------------------------------------------------
+# Response sub-models
+# ---------------------------------------------------------------------------
 
-    @field_validator("country_code")
-    @classmethod
-    def upper_country(cls, v: str) -> str:
-        return v.upper()
+class Skill(BaseModel):
+    name: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    evidence: Optional[str] = None
 
+
+class Signal(BaseModel):
+    score: int = Field(ge=0, le=100)
+    rationale: str
+    display_value: Optional[str] = None
+
+
+class NetworkEntryPoint(BaseModel):
+    channel: str
+    lat: float
+    lng: float
+    label: str
+
+
+class ProfileCard(BaseModel):
+    profile_id: str
+    display_name: str
+    pseudonym: str
+    age: Optional[int] = None
+    location: str
+    languages: list[str]
+    skills: list[Skill] = Field(min_length=1, max_length=8)
+    wage_signal: Signal
+    growth_signal: Signal
+    network_entry: NetworkEntryPoint
+    sms_summary: str = Field(max_length=320)
+    ussd_menu: list[str] = Field(min_length=4, max_length=8)
+
+
+class ParseResponse(BaseModel):
+    """Successful parse response — mirrors frontend ParseResponse exactly."""
+    ok: Literal[True] = True
+    profile: ProfileCard
+    latency_ms: float
+    country: Literal["GH", "AM"]
+    parser_version: str
+
+
+class ParseError(BaseModel):
+    """Error response — mirrors frontend ParseError exactly."""
+    ok: Literal[False] = False
+    error: str
+    code: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# System models
+# ---------------------------------------------------------------------------
 
 class HealthResponse(BaseModel):
     status: str
     version: str
     protocol: str
-
-
-class ParseResponse(BaseModel):
-    """Full response from POST /parse."""
-    ok: bool
-    user: dict[str, Any]
-    skills: list[dict[str, Any]]
-    vss_list: list[dict[str, Any]]
-    human_layer: dict[str, Any]
-    meta: dict[str, Any]
-
-
-class VSSResponse(BaseModel):
-    ok: bool
-    vss_list: list[dict[str, Any]]
-    human_layer: dict[str, Any]
-    meta: dict[str, Any]
-
-
-class ErrorResponse(BaseModel):
-    ok: bool = False
-    error: str
-    detail: Optional[str] = None

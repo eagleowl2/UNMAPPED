@@ -7,6 +7,135 @@ Format per Section 12.4 of UNMAPPED Protocol v0.2 spec.
 
 ---
 
+## LOG ENTRY: 2026-04-26 (v0.3.0 — SSE Hardening)
+
+**Entry ID:** `LOG-0002`
+**Version:** `v0.3.0`
+**Branch:** `module/m1-sse`
+**Author:** Claude (Senior Backend Architect — SSE Core)
+**Status:** COMPLETE — 106/106 tests passing, ready for merge to `dev`
+
+---
+
+### 1. Change Type
+`feat` + `fix` — Harden Module 1 SSE to match the frozen frontend API contract; add Armenia (AM) locale; add wage/growth/network-entry signals.
+
+---
+
+### 2. Primitives Affected
+
+| Primitive | Action | File |
+|---|---|---|
+| `ProfileCard` | ADDED (new public response shape) | `app/core/parser.py` |
+| `WageSignal` | ADDED | `app/core/signals.py` |
+| `GrowthSignal` | ADDED | `app/core/signals.py` |
+| `NetworkEntryPoint` | ADDED | `app/core/signals.py` |
+| `CountryProfile (AM)` | ADDED | `config/armenia_urban_informal.json` |
+| `EvidenceParser` | MODIFIED — `parse_for_profile()`, Armenian patterns, `taxonomy_code` | `app/core/parser.py` |
+| API contract | BREAKING CHANGE — request now `raw_input/country`, response now `profile/latency_ms` | `app/api/routes.py`, `app/models/schemas.py` |
+
+---
+
+### 3. Summary of Changes
+
+**3.1 Frontend contract alignment (breaking from v0.3-alpha.1)**
+
+After reading `frontend/src/lib/types.ts`, `frontend/src/lib/api.ts`, and
+`docs/api-contract.md`, the API was completely realigned:
+
+| Field | Old (alpha.1) | New (v0.3.0) |
+|---|---|---|
+| Request key | `text` | `raw_input` |
+| Country key | `country_code` | `country` |
+| Response wrapper | flat `user/skills/vss_list` | `{ok, profile, latency_ms, country, parser_version}` |
+| Skill shape | `label/category/source_phrases` | `name/confidence/evidence` |
+| Location | `{city, country_code}` dict | human string `"Accra, Greater Accra"` |
+| Languages | BCP-47 list `["ak-GH","en"]` | human names `["Twi","English"]` |
+| SMS | `{text, char_count}` object | plain string ≤ 160 chars |
+| USSD | nested tree object | `string[]` ≤ 40 chars/line |
+| New fields | — | `wage_signal`, `growth_signal`, `network_entry`, `pseudonym`, `age`, `profile_id` |
+
+**3.2 Armenia (AM) locale**
+
+Added `config/armenia_urban_informal.json` (AMD currency, Idram rails, e-gov.am
+network entry, hy-AM/ru language support) and registered it in the profile
+registry. Added Armenian Unicode script detection + Armenian-specific skill
+patterns (teaching "դաս", translation "թարգման", Idram mobile money).
+
+**3.3 Signals engine (`app/core/signals.py` — new module)**
+
+- `compute_wage_signal()`: per-country ISCO-08 wage bands → score 0-100 +
+  currency-formatted `display_value` + rationale.
+- `compute_growth_signal()`: ambition keyword scoring + digital/financial
+  skill boosts + experience multiplier → score 0-100 + rationale.
+- `get_network_entry()`: skill taxonomy code → formal-economy entry channel
+  + WGS84 coordinates (GH: Accra/MTN MoMo/NBSSI; AM: Gyumri/e-gov.am/Idram).
+- `detect_age()`: English + Armenian ("31 տարեկան") age extraction.
+- `bcp47_to_human()`: BCP-47 → human-readable language names.
+
+**3.4 Endpoint layout**
+
+- `POST /parse` — primary endpoint (SPA calls `http://localhost:8000/parse`)
+- `POST /api/v1/parse` — legacy alias
+- `POST /api/v1/generate_profile_card` — explicit card regeneration
+
+---
+
+### 4. Test Results
+
+```
+106 passed in 7.18s
+  tests/test_api.py          39 passed  (contract compliance + locale swap)
+  tests/test_parser.py       46 passed  (Amara GH + Ani AM canonical vectors)
+  tests/test_country_profile.py  8 passed
+  tests/test_taxonomy.py      6 passed
+  tests/test_bayesian.py      7 passed
+```
+
+Key test additions:
+- Amara canonical: age=27, bookkeeping, fish trading, mobile money, GHS wage
+- Ani canonical: age=31 (Armenian script), translation, teaching, AMD wage, AM USSD `*404#`
+- Locale swap: GHS vs AMD in wage signal
+- Zero-credential path: self-taught / no formal degree
+- SMS ≤ 160 chars, USSD 4-8 lines each ≤ 40 chars
+- Profile ID deterministic (SHA-256 of input)
+
+---
+
+### 5. Files Modified / Added
+
+```
+app/
+  main.py                    — mount public_router at "/" + v1_router at "/api/v1"
+  api/routes.py              — POST /parse (public), /api/v1/parse, /generate_profile_card
+  core/parser.py             — parse_for_profile(), Armenian patterns, taxonomy_code on skills
+  core/signals.py            NEW — wage/growth signals + network entry + age/language helpers
+  models/schemas.py          — ParseRequest (raw_input/country), ProfileCard, Signal, NetworkEntryPoint
+config/
+  armenia_urban_informal.json  NEW
+tests/
+  test_api.py                — full rewrite for new contract (39 tests)
+  test_parser.py             — full rewrite inc. Ani Armenia story (46 tests)
+docker-compose.yml           — image tag updated to v0.3.0
+```
+
+---
+
+### 6. Breaking Changes
+
+Request shape change from `{text, country_code}` → `{raw_input, country}`.
+Response shape change from flat VSS list → `{ok, profile, latency_ms, country, parser_version}`.
+These break the alpha.1 contract — all clients should migrate to the new shape.
+The `/api/v1/parse` alias accepts the new shape too (no old-shape backward compat).
+
+---
+
+### 7. Rollback Path
+1. `git revert HEAD` (single commit) restores alpha.1 state.
+2. No DB migrations, no persistent state — purely stateless API.
+
+---
+
 ## LOG ENTRY: 2026-04-26
 
 **Entry ID:** `LOG-0004`

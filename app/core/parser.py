@@ -1,17 +1,11 @@
 """
-Skills Signal Engine — Evidence Parser.
+Skills Signal Engine — Evidence Parser (v0.3.0).
 
-Accepts one chaotic unstructured text input (any language, any format) and
-produces: USER entity + N SKILL entities + VSS objects + HumanLayer.
+Accepts one chaotic unstructured text input (any language) and produces:
+  USER entity + N SKILL entities + VSS list + HumanLayer (profile card format).
 
-Pipeline:
-  raw_text
-    → language detection
-    → NER / pattern extraction (name, location, languages, skills, experience)
-    → taxonomy crosswalk (NetworkX)
-    → Bayesian confidence scoring (Beta conjugate)
-    → VSS assembly
-    → HumanLayer rendering (Jinja2)
+Also exposes parse_for_profile() which returns the exact ProfileCard dict
+shape expected by the frontend contract in docs/api-contract.md.
 """
 from __future__ import annotations
 
@@ -35,40 +29,73 @@ from app.core.taxonomy import TaxonomyGraph
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Skill pattern catalog (regex + weight) — language-agnostic heuristics
-# These fire BEFORE spaCy NER and act as lightweight keyword extractors.
+# Skill pattern catalog — English + Armenian transliteration
+# (pattern, canonical_label, category, base_evidence_weight, isco_code)
 # ---------------------------------------------------------------------------
 
-_SKILL_PATTERNS: list[tuple[re.Pattern[str], str, str, float]] = [
-    # (pattern, canonical_label, category, base_evidence_weight)
-    (re.compile(r"\b(fix(?:ing)?|repair(?:ing)?)\s+(?:mobile\s+)?phone[s]?\b", re.I), "Phone Repair", "technical", 0.75),
-    (re.compile(r"\bphone\s+(?:repair(?:er|ing)?|technician|fixer)\b", re.I), "Phone Repair", "technical", 0.78),
-    (re.compile(r"\bmobile\s+(?:repair|technician)\b", re.I), "Phone Repair", "technical", 0.76),
-    (re.compile(r"\belectronics?\s+repair\b", re.I), "Electronics Repair", "technical", 0.70),
-    (re.compile(r"\bscreen\s+(?:replacement|repair|fix)\b", re.I), "Screen Repair", "technical", 0.68),
-    (re.compile(r"\bcod(?:e|ing|er)\b", re.I), "Software Development", "digital", 0.65),
-    (re.compile(r"\bprogramm(?:ing|er)\b", re.I), "Software Development", "digital", 0.70),
-    (re.compile(r"\bweb\s+dev(?:elop(?:ment|er))?\b", re.I), "Web Development", "digital", 0.72),
-    (re.compile(r"\bpython\b", re.I), "Python Programming", "digital", 0.60),
-    (re.compile(r"\bjavascript\b", re.I), "JavaScript Programming", "digital", 0.60),
-    (re.compile(r"\bhtml\b", re.I), "HTML/CSS", "digital", 0.55),
-    (re.compile(r"\bteach(?:ing|er)?\b", re.I), "Teaching", "other", 0.65),
-    (re.compile(r"\btutor(?:ing)?\b", re.I), "Tutoring", "other", 0.65),
-    (re.compile(r"\btailoring\b", re.I), "Tailoring", "trade", 0.75),
-    (re.compile(r"\bsewing\b", re.I), "Sewing", "trade", 0.70),
-    (re.compile(r"\bdriv(?:ing|er)\b", re.I), "Driving", "trade", 0.60),
-    (re.compile(r"\bdeliver(?:y|ies|ing)\b", re.I), "Delivery Services", "trade", 0.55),
-    (re.compile(r"\bfarming\b", re.I), "Farming", "agricultural", 0.70),
-    (re.compile(r"\bagriculture\b", re.I), "Agriculture", "agricultural", 0.70),
-    (re.compile(r"\bchildcare\b", re.I), "Childcare", "care", 0.72),
-    (re.compile(r"\bnurse\b|\bnursing\b", re.I), "Nursing/Care", "care", 0.68),
-    (re.compile(r"\baccounting\b|\baccountant\b", re.I), "Accounting", "financial", 0.72),
-    (re.compile(r"\bbook(?:keeping|keeper)\b", re.I), "Bookkeeping", "financial", 0.70),
-    (re.compile(r"\bdesign(?:er|ing)?\b", re.I), "Design", "creative", 0.60),
-    (re.compile(r"\bphotograph(?:y|er|ing)\b", re.I), "Photography", "creative", 0.68),
-    (re.compile(r"\bvideo\s+editing\b", re.I), "Video Editing", "creative", 0.65),
-    (re.compile(r"\bsocial\s+media\b", re.I), "Social Media Management", "digital", 0.58),
-    (re.compile(r"\bdata\s+entry\b", re.I), "Data Entry", "digital", 0.60),
+_SKILL_PATTERNS: list[tuple[re.Pattern[str], str, str, float, str]] = [
+    # Phone / electronics repair
+    (re.compile(r"\b(fix(?:ing)?|repair(?:ing)?)\s+(?:mobile\s+)?phone[s]?\b", re.I), "Phone Repair", "technical", 0.75, "7421"),
+    (re.compile(r"\bphone\s+(?:repair(?:er|ing)?|technician|fixer)\b", re.I), "Phone Repair", "technical", 0.78, "7421"),
+    (re.compile(r"\bmobile\s+(?:repair|technician)\b", re.I), "Phone Repair", "technical", 0.76, "7421"),
+    (re.compile(r"\belectronics?\s+repair\b", re.I), "Electronics Repair", "technical", 0.70, "7421"),
+    (re.compile(r"\bscreen\s+(?:replacement|repair|fix)\b", re.I), "Screen Repair", "technical", 0.68, "7421"),
+    # Software / digital
+    (re.compile(r"\bcod(?:e|ing|er)\b", re.I), "Software Development", "digital", 0.65, "2512"),
+    (re.compile(r"\bprogramm(?:ing|er)\b", re.I), "Software Development", "digital", 0.70, "2512"),
+    (re.compile(r"\bweb\s+dev(?:elop(?:ment|er))?\b", re.I), "Web Development", "digital", 0.72, "2512"),
+    (re.compile(r"\bpython\b", re.I), "Python Programming", "digital", 0.60, "2512"),
+    (re.compile(r"\bjavascript\b", re.I), "JavaScript Programming", "digital", 0.60, "2512"),
+    (re.compile(r"\bhtml\b", re.I), "HTML/CSS", "digital", 0.55, "2512"),
+    # Teaching / tutoring
+    (re.compile(r"\bteach(?:ing|er)?\b", re.I), "Teaching", "other", 0.65, "2320"),
+    (re.compile(r"\btutor(?:ing)?\b", re.I), "Tutoring", "other", 0.65, "2320"),
+    (re.compile(r"\benglish\s+(?:tutor|lesson|teach|class)\b", re.I), "English Tutoring", "other", 0.80, "2320"),
+    (re.compile(r"\blessons?\b", re.I), "Teaching", "other", 0.60, "2320"),
+    # Translation
+    (re.compile(r"\btranslat(?:e|ing|ion|or)\b", re.I), "Translation", "other", 0.78, "2643"),
+    (re.compile(r"\binterpret(?:ing|er)?\b", re.I), "Interpretation", "other", 0.72, "2643"),
+    # Trade / retail
+    (re.compile(r"\bsell(?:ing)?\b|\bsales?\b|\btrader\b|\btrading\b", re.I), "Trading/Sales", "trade", 0.68, "5221"),
+    (re.compile(r"\bmarket\s+(?:trader|vendor|stall)\b", re.I), "Market Trading", "trade", 0.75, "5221"),
+    (re.compile(r"\bvendor\b|\bkiosk\b|\bstall\b", re.I), "Market Trading", "trade", 0.65, "5221"),
+    # Tailoring / textiles
+    (re.compile(r"\btailoring\b|\bdressmaking\b", re.I), "Tailoring", "trade", 0.75, "7436"),
+    (re.compile(r"\bsew(?:ing)?\b", re.I), "Sewing", "trade", 0.70, "7436"),
+    (re.compile(r"\bbraiding\b|\bhair\s+braid\b", re.I), "Hair Braiding", "trade", 0.73, "5141"),
+    (re.compile(r"\bhair\s+(?:salon|dress|style|cut)\b", re.I), "Hair Styling", "trade", 0.70, "5141"),
+    # Transport / delivery
+    (re.compile(r"\bdriv(?:ing|er)\b", re.I), "Driving", "trade", 0.60, "8322"),
+    (re.compile(r"\bdeliver(?:y|ies|ing)\b", re.I), "Delivery Services", "trade", 0.55, "8322"),
+    # Farming
+    (re.compile(r"\bfarming\b|\bagriculture\b|\bcrop[s]?\b", re.I), "Farming", "agricultural", 0.70, "6110"),
+    (re.compile(r"\bfish(?:ing|erman|monger|trader)\b|\bsmoked\s+fish\b", re.I), "Fish Trading", "trade", 0.72, "5221"),
+    # Care work
+    (re.compile(r"\bchildcare\b|\bnanny\b", re.I), "Childcare", "care", 0.72, "5322"),
+    (re.compile(r"\bnurs(?:e|ing)\b", re.I), "Nursing/Care", "care", 0.68, "5322"),
+    # Finance
+    (re.compile(r"\baccounting\b|\baccountant\b", re.I), "Accounting", "financial", 0.72, "3312"),
+    (re.compile(r"\bbook(?:keeping|keeper)\b|\bledger\b", re.I), "Bookkeeping", "financial", 0.70, "3312"),
+    (re.compile(r"\bmobile\s+money\b|\bvodafone\s+cash\b|\bmtn\s+momo\b|\bidram\b", re.I), "Mobile Money", "financial", 0.68, "3312"),
+    # Creative
+    (re.compile(r"\bphotograph(?:y|er|ing)\b", re.I), "Photography", "creative", 0.68, "3431"),
+    (re.compile(r"\bvideo\s+editing\b", re.I), "Video Editing", "creative", 0.65, "3431"),
+    (re.compile(r"\bdesign(?:er|ing)?\b", re.I), "Design", "creative", 0.60, "3431"),
+    # Social media / digital marketing
+    (re.compile(r"\bsocial\s+media\b", re.I), "Social Media Management", "digital", 0.58, "2512"),
+    (re.compile(r"\bdata\s+entry\b", re.I), "Data Entry", "digital", 0.60, "4131"),
+]
+
+# Armenian skill patterns (transliteration + Unicode script)
+_ARMENIAN_SKILL_PATTERNS: list[tuple[re.Pattern[str], str, str, float, str]] = [
+    # "դաս" = lesson, "դասավ" = teach, "դասատու" = teacher
+    (re.compile(r"\bդաս(?:ավ|եր|ատու)?\b", re.I), "Teaching", "other", 0.75, "2320"),
+    # "թարգման" root = translate (թարգմանում = translating, թարգմանիչ = translator)
+    (re.compile(r"թարգման", re.UNICODE), "Translation", "other", 0.78, "2643"),
+    # "Idram" digital payment
+    (re.compile(r"\bIdram\b|\bիդ(?:րամ)?\b", re.I), "Mobile Money", "financial", 0.68, "3312"),
+    # "ստուդ" = studio
+    (re.compile(r"\bստուդ(?:իա|ո)?\b", re.I), "Teaching", "other", 0.65, "2320"),
 ]
 
 # Experience signal patterns
@@ -85,21 +112,22 @@ _EXPERIENCE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"online\s+course[s]?\b", re.I), "online_learning"),
 ]
 
-# Name extraction patterns
 _NAME_PATTERNS = [
     re.compile(r"(?:my\s+name\s+is|i(?:'m|\s+am)|call\s+me)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)", re.I),
-    re.compile(r"^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s*,?\s*(?:i\s+am|i'm|is\s+a)", re.I),
+    re.compile(r"^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s*,?\s*(?:i\s+am|i'm|is\s+a|\d{2})", re.I),
+    # Armenian: "Իմ անունը X է"
+    re.compile(r"Իմ\s+անունը\s+([Ա-Ֆա-ֆA-Za-z]+)\s+է", re.UNICODE),
 ]
 
-# Location patterns
 _LOCATION_PATTERNS = [
     re.compile(r"\bin\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b"),
     re.compile(r"\bfrom\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b"),
     re.compile(r"\blive[s]?\s+in\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b"),
     re.compile(r"\bbased\s+in\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b"),
+    # Armenian "Գյ" = Gyumri prefix, "Երևան" = Yerevan
+    re.compile(r"\b(Երևան|Գյ(?:ումրի)?|Վ(?:անաձոր)?)\b", re.UNICODE),
 ]
 
-# Language mention patterns (maps detected language words to BCP-47)
 _LANGUAGE_MAP: dict[str, str] = {
     "english": "en",
     "twi": "ak-GH",
@@ -115,12 +143,20 @@ _LANGUAGE_MAP: dict[str, str] = {
     "amharic": "am",
     "somali": "so",
     "wolof": "wo",
+    "armenian": "hy-AM",
+    "russian": "ru",
+    "հայ": "hy-AM",          # "Armenian" in Armenian
+    "ռուս": "ru",             # "Russian" in Armenian
+    "անգլ": "en",            # "English" in Armenian
 }
 
 _LANGUAGE_PATTERN = re.compile(
     r"\b(" + "|".join(re.escape(k) for k in _LANGUAGE_MAP) + r")\b",
-    re.I,
+    re.I | re.UNICODE,
 )
+
+# Armenian script range
+_ARMENIAN_SCRIPT_RE = re.compile(r"[\u0531-\u0587]")
 
 
 @dataclass
@@ -143,15 +179,16 @@ class ExtractedSkill:
     experience_signals: list[str]
     evidence_weight: float
     extra_signals: dict[str, Any]
+    taxonomy_code: str = "9999"     # ISCO-08 code, for signals computation
 
 
 class EvidenceParser:
     """
-    Core parser: raw text → USER + SKILL entities → VSS + HumanLayer.
+    Core SSE parser: raw text (any language) → USER entity + SKILL entities.
 
-    Usage:
-        parser = EvidenceParser(country_code="GH", context_tag="urban_informal")
-        result = parser.parse("My name is Amara, I fix phones in Accra...")
+    Two public entry points:
+      parse()              → full internal dict (VSS list, HumanLayer)
+      parse_for_profile()  → ProfileCard dict matching the frontend contract
     """
 
     def __init__(
@@ -160,7 +197,7 @@ class EvidenceParser:
         context_tag: str = "urban_informal",
         spacy_model: str = "xx_ent_wiki_sm",
     ) -> None:
-        self.country_code = country_code
+        self.country_code = country_code.upper()
         self.context_tag = context_tag
         self.profile = load_country_profile(country_code, context_tag)
         self.priors = get_confidence_priors(self.profile)
@@ -174,10 +211,7 @@ class EvidenceParser:
     # ------------------------------------------------------------------
 
     def parse(self, raw_text: str) -> dict[str, Any]:
-        """Full parse pipeline: raw_text → VSS list + HumanLayer.
-
-        Returns a dict with keys: user, skills (list), vss_list (list), human_layer.
-        """
+        """Full parse pipeline → internal dict (VSS list + HumanLayer)."""
         text_hash = hashlib.sha256(raw_text.encode()).hexdigest()
         now = datetime.now(timezone.utc).isoformat()
 
@@ -193,6 +227,122 @@ class EvidenceParser:
             "human_layer": human_layer,
         }
 
+    def parse_for_profile(self, raw_text: str) -> dict[str, Any]:
+        """Parse and return the ProfileCard dict matching the frontend API contract.
+
+        Returns a dict matching ProfileCard in frontend/src/lib/types.ts.
+        """
+        from app.core.signals import (
+            compute_wage_signal,
+            compute_growth_signal,
+            get_network_entry,
+            bcp47_to_human,
+            detect_age,
+        )
+
+        t_hash = hashlib.sha256(raw_text.encode()).hexdigest()
+        now = datetime.now(timezone.utc).isoformat()
+
+        user = self._extract_user(raw_text, t_hash)
+        skills = self._extract_skills(raw_text)
+        vss_list = self._build_vss_list(user, skills, now)
+
+        # --- Build skill list for profile (name, confidence, evidence)
+        skill_items: list[dict[str, Any]] = []
+        for i, skill in enumerate(skills[:8]):
+            vss = vss_list[i] if i < len(vss_list) else {}
+            confidence = vss.get("confidence", {}).get("score", skill.evidence_weight)
+            evidence = skill.source_phrases[0] if skill.source_phrases else None
+            skill_items.append({
+                "name": skill.label,
+                "confidence": round(confidence, 2),
+                "evidence": evidence,
+                # pass-through for signals
+                "category": skill.category,
+                "taxonomy_code": skill.taxonomy_code,
+            })
+
+        # Sort by confidence descending, cap at 8
+        skill_items.sort(key=lambda x: x["confidence"], reverse=True)
+
+        # Collect extra signals from all skills (merge)
+        extra: dict[str, Any] = {}
+        for sk in skills:
+            for k, v in sk.extra_signals.items():
+                if k not in extra:
+                    extra[k] = v
+
+        # Wage signal
+        wage = compute_wage_signal(skill_items, self.country_code, extra)
+        # Growth signal
+        growth = compute_growth_signal(
+            raw_text, skill_items,
+            user.zero_credential, extra, self.country_code,
+        )
+        # Network entry
+        city = user.location.get("city", "")
+        net_entry = get_network_entry(skill_items, self.country_code, city)
+
+        # Location string
+        loc_parts = [p for p in [city, _country_region(self.country_code)] if p]
+        location_str = ", ".join(loc_parts) or self.country_code
+
+        # Languages — human-readable names
+        lang_names = bcp47_to_human(user.languages)
+
+        # Pseudonym = first name only; display_name = first + last initial
+        name = user.display_name or "Anonymous"
+        pseudonym = name.split()[0] if name else "Worker"
+        display_name = _safe_display_name(name)
+
+        # Age
+        age = detect_age(raw_text)
+
+        # Profile ID — deterministic from text hash
+        profile_id = f"prf-{t_hash[:12]}"
+
+        # SMS summary (≤ 160 chars, target)
+        sms = _build_sms(
+            pseudonym=pseudonym,
+            age=age,
+            location=location_str,
+            skills=skill_items[:3],
+            wage_score=wage["score"],
+            growth_score=growth["score"],
+            country=self.country_code,
+        )
+
+        # USSD menu (4-8 lines, ≤ 40 chars each)
+        ussd_code = self.profile.get("delivery_channels", {}).get("ussd", {})
+        shortcode = _ussd_shortcode(self.country_code)
+        ussd_menu = _build_ussd_menu(
+            shortcode=shortcode,
+            pseudonym=pseudonym,
+            skills=skill_items[:5],
+            wage_score=wage["score"],
+            growth_score=growth["score"],
+        )
+
+        # Strip pass-through keys before returning
+        for s in skill_items:
+            s.pop("category", None)
+            s.pop("taxonomy_code", None)
+
+        return {
+            "profile_id": profile_id,
+            "display_name": display_name,
+            "pseudonym": pseudonym,
+            "age": age,
+            "location": location_str,
+            "languages": lang_names,
+            "skills": skill_items,
+            "wage_signal": wage,
+            "growth_signal": growth,
+            "network_entry": net_entry,
+            "sms_summary": sms,
+            "ussd_menu": ussd_menu,
+        }
+
     # ------------------------------------------------------------------
     # Extraction helpers
     # ------------------------------------------------------------------
@@ -203,8 +353,9 @@ class EvidenceParser:
         languages = self._extract_languages(text)
         zero_cred = self._detect_zero_credential(text)
 
+        uid = f"usr_{uuid.uuid4()}"
         return ExtractedUser(
-            user_id=f"usr_{uuid.uuid4().hex[:8]}-{uuid.uuid4().hex[:4]}-{uuid.uuid4().hex[:4]}-{uuid.uuid4().hex[:4]}-{uuid.uuid4().hex[:12]}",
+            user_id=uid,
             display_name=display_name,
             location=location,
             languages=languages,
@@ -218,7 +369,6 @@ class EvidenceParser:
             m = pattern.search(text)
             if m:
                 return m.group(1).strip().title()
-        # spaCy PERSON entity fallback
         if self._nlp:
             doc = self._nlp(text)
             for ent in doc.ents:
@@ -234,9 +384,11 @@ class EvidenceParser:
         for pattern in _LOCATION_PATTERNS:
             m = pattern.search(text)
             if m:
-                location["city"] = m.group(1).strip()
-                break
-        # spaCy GPE fallback
+                city = m.group(1).strip()
+                # Exclude obvious non-cities
+                if city.lower() not in ("a", "the", "my", "our", "any", "your"):
+                    location["city"] = city
+                    break
         if "city" not in location and self._nlp:
             doc = self._nlp(text)
             for ent in doc.ents:
@@ -247,6 +399,9 @@ class EvidenceParser:
 
     def _extract_languages(self, text: str) -> list[str]:
         found = []
+        # Armenian script detection
+        if _ARMENIAN_SCRIPT_RE.search(text) and "hy-AM" not in found:
+            found.append("hy-AM")
         for m in _LANGUAGE_PATTERN.finditer(text):
             bcp47 = _LANGUAGE_MAP.get(m.group(1).lower())
             if bcp47 and bcp47 not in found:
@@ -256,53 +411,52 @@ class EvidenceParser:
         return found
 
     def _extract_skills(self, text: str) -> list[ExtractedSkill]:
-        """Extract all skill signals from text using pattern matching."""
-        found: dict[str, ExtractedSkill] = {}  # label → skill (dedup)
+        found: dict[str, ExtractedSkill] = {}
 
-        for pattern, label, category, base_weight in _SKILL_PATTERNS:
-            matches = pattern.findall(text)
-            if not matches:
+        all_patterns = list(_SKILL_PATTERNS)
+        if _ARMENIAN_SCRIPT_RE.search(text):
+            all_patterns += _ARMENIAN_SKILL_PATTERNS
+
+        for pattern, label, category, base_weight, isco_code in all_patterns:
+            if not pattern.search(text):
                 continue
 
-            source_phrases = []
-            for m in pattern.finditer(text):
-                phrase = self._get_context_window(text, m.start(), m.end())
-                source_phrases.append(phrase)
-
+            source_phrases = [
+                self._get_context_window(text, m.start(), m.end())
+                for m in pattern.finditer(text)
+            ]
             experience_signals, extra = self._extract_experience(text)
 
             if label in found:
-                # Merge evidence
                 existing = found[label]
                 existing.source_phrases.extend(source_phrases)
                 existing.experience_signals.extend(experience_signals)
                 existing.evidence_weight = min(existing.evidence_weight + 0.05, 1.0)
             else:
-                skill_id = f"skl_{uuid.uuid4().hex[:8]}-{uuid.uuid4().hex[:4]}-{uuid.uuid4().hex[:4]}-{uuid.uuid4().hex[:4]}-{uuid.uuid4().hex[:12]}"
                 found[label] = ExtractedSkill(
-                    skill_id=skill_id,
+                    skill_id=f"skl_{uuid.uuid4()}",
                     label=label,
                     category=category,
                     source_phrases=source_phrases,
                     experience_signals=list(set(experience_signals)),
                     evidence_weight=base_weight,
                     extra_signals=extra,
+                    taxonomy_code=isco_code,
                 )
 
-        # NLP-based skill fallback via taxonomy crosswalk
-        noun_phrases = self._extract_noun_phrases(text)
-        for phrase in noun_phrases:
+        # NLP noun-phrase fallback → taxonomy crosswalk
+        for phrase in self._extract_noun_phrases(text):
             result = self._taxonomy.crosswalk(phrase)
             if result and result.primary.label not in found:
-                skill_id = f"skl_{uuid.uuid4().hex[:8]}-{uuid.uuid4().hex[:4]}-{uuid.uuid4().hex[:4]}-{uuid.uuid4().hex[:4]}-{uuid.uuid4().hex[:12]}"
                 found[result.primary.label] = ExtractedSkill(
-                    skill_id=skill_id,
+                    skill_id=f"skl_{uuid.uuid4()}",
                     label=result.primary.label,
                     category="other",
                     source_phrases=[phrase],
                     experience_signals=[],
                     evidence_weight=result.primary.match_score * 0.8,
                     extra_signals={},
+                    taxonomy_code=result.primary.code,
                 )
 
         return list(found.values())
@@ -310,35 +464,34 @@ class EvidenceParser:
     def _extract_experience(self, text: str) -> tuple[list[str], dict[str, Any]]:
         signals: list[str] = []
         extra: dict[str, Any] = {}
-
         for pattern, signal_type in _EXPERIENCE_PATTERNS:
             m = pattern.search(text)
-            if m:
-                raw_signal = m.group(0)
-                signals.append(raw_signal)
-                if signal_type == "years_experience":
-                    try:
-                        extra["years_experience"] = int(m.group(1))
-                    except (IndexError, ValueError):
-                        pass
-                elif signal_type == "since_year":
-                    try:
-                        year = int("20" + m.group(1)) if int(m.group(1)) < 50 else int("19" + m.group(1))
-                        extra["years_experience"] = max(0, 2024 - year)
-                    except (IndexError, ValueError):
-                        pass
-                elif signal_type in ("client_count", "volume_per_period"):
-                    try:
-                        extra[signal_type] = int(m.group(1))
-                    except (IndexError, ValueError):
-                        pass
-                elif signal_type in ("self_taught", "self_taught_digital"):
-                    extra["self_taught"] = True
-
+            if not m:
+                continue
+            signals.append(m.group(0))
+            if signal_type == "years_experience":
+                try:
+                    extra["years_experience"] = int(m.group(1))
+                except (IndexError, ValueError):
+                    pass
+            elif signal_type == "since_year":
+                try:
+                    yr = int(m.group(1))
+                    full_yr = (2000 + yr) if yr < 50 else (1900 + yr)
+                    extra["years_experience"] = max(0, 2025 - full_yr)
+                except (IndexError, ValueError):
+                    pass
+            elif signal_type in ("client_count", "volume_per_period"):
+                try:
+                    extra[signal_type] = int(m.group(1))
+                except (IndexError, ValueError):
+                    pass
+            elif signal_type in ("self_taught", "self_taught_digital"):
+                extra["self_taught"] = True
         return signals, extra
 
     def _detect_zero_credential(self, text: str) -> bool:
-        zero_cred_signals = [
+        patterns = [
             r"no\s+(?:formal\s+)?(?:degree|diploma|certificate|qualification)",
             r"didn'?t\s+(?:finish|complete|go\s+to)\s+school",
             r"dropped\s+out",
@@ -346,17 +499,12 @@ class EvidenceParser:
             r"learned\s+(?:on\s+the\s+job|from\s+youtube|online)",
             r"no\s+credentials?",
         ]
-        for sig in zero_cred_signals:
-            if re.search(sig, text, re.I):
-                return True
-        return False
+        return any(re.search(p, text, re.I) for p in patterns)
 
     def _extract_noun_phrases(self, text: str) -> list[str]:
-        """Extract candidate skill phrases via spaCy or simple NP regex fallback."""
         if self._nlp:
             doc = self._nlp(text)
             return [chunk.text for chunk in doc.noun_chunks if len(chunk.text.split()) <= 4]
-        # Fallback: extract 1-3 word noun-like tokens
         return re.findall(r"\b[A-Za-z]+(?:\s+[A-Za-z]+){0,2}\b", text)
 
     @staticmethod
@@ -386,7 +534,6 @@ class EvidenceParser:
             crosswalk_result = self._taxonomy.crosswalk(
                 " ".join([skill.label] + skill.source_phrases[:2])
             )
-
             vss = {
                 "vss_id": f"vss_{uuid.uuid4()}",
                 "schema_version": "v0.2",
@@ -404,6 +551,7 @@ class EvidenceParser:
                     "skill_id": skill.skill_id,
                     "label": skill.label,
                     "category": skill.category,
+                    "taxonomy_code": skill.taxonomy_code,
                     "source_phrases": skill.source_phrases[:5],
                     "experience_signals": skill.experience_signals[:5],
                 },
@@ -417,10 +565,10 @@ class EvidenceParser:
                     "method": confidence.method,
                     "tier": confidence.tier,
                 },
-                "taxonomy_crosswalk": self._crosswalk_to_dict(crosswalk_result),
+                "taxonomy_crosswalk": _crosswalk_to_dict(crosswalk_result),
                 "country_code": self.country_code,
                 "processing_meta": {
-                    "parser_version": "v0.3-sse-alpha.1",
+                    "parser_version": "v0.3.0",
                     "model_id": "unmapped-sse-parser",
                     "detected_language": user.languages[0] if user.languages else "en",
                 },
@@ -441,16 +589,15 @@ class EvidenceParser:
             }
             for phrase in skill.source_phrases[:3]
         ]
-        if skill.experience_signals:
-            for sig in skill.experience_signals[:2]:
-                chain.append({
-                    "evidence_type": "self_report",
-                    "raw_signal": sig,
-                    "normalized_signal": sig.lower().strip(),
-                    "weight": round(min(skill.evidence_weight + 0.1, 1.0), 3),
-                    "source": "experience_signal_extractor",
-                    "timestamp": now,
-                })
+        for sig in skill.experience_signals[:2]:
+            chain.append({
+                "evidence_type": "self_report",
+                "raw_signal": sig,
+                "normalized_signal": sig.lower().strip(),
+                "weight": round(min(skill.evidence_weight + 0.1, 1.0), 3),
+                "source": "experience_signal_extractor",
+                "timestamp": now,
+            })
         if not chain:
             chain.append({
                 "evidence_type": "self_report",
@@ -462,37 +609,8 @@ class EvidenceParser:
             })
         return chain
 
-    @staticmethod
-    def _crosswalk_to_dict(result: Any) -> dict[str, Any]:
-        if result is None:
-            return {
-                "primary": {
-                    "framework": "ISCO-08",
-                    "code": "9999",
-                    "label": "Unclassified",
-                    "match_score": 0.0,
-                }
-            }
-        return {
-            "primary": {
-                "framework": result.primary.framework,
-                "code": result.primary.code,
-                "label": result.primary.label,
-                "match_score": result.primary.match_score,
-            },
-            "secondary": [
-                {
-                    "framework": s.framework,
-                    "code": s.code,
-                    "label": s.label,
-                    "match_score": s.match_score,
-                }
-                for s in (result.secondary or [])
-            ],
-        }
-
     # ------------------------------------------------------------------
-    # HumanLayer builder
+    # HumanLayer builder (internal format)
     # ------------------------------------------------------------------
 
     def _build_human_layer(
@@ -526,14 +644,11 @@ class EvidenceParser:
             "skill_id": skill.skill_id,
             "label": skill.label,
             "category": skill.category,
+            "taxonomy_code": skill.taxonomy_code,
             "source_phrases": skill.source_phrases,
             "experience_signals": skill.experience_signals,
             "evidence_weight": skill.evidence_weight,
         }
-
-    # ------------------------------------------------------------------
-    # spaCy loader (graceful degradation if model not installed)
-    # ------------------------------------------------------------------
 
     @staticmethod
     def _load_spacy(model: str) -> Any:
@@ -544,11 +659,94 @@ class EvidenceParser:
             logger.warning("spaCy not installed — NLP fallback active")
             return None
         except OSError:
-            logger.warning("spaCy model '%s' not found — NLP fallback active", model)
-            # Try downloading automatically
-            try:
-                import spacy  # type: ignore
-                spacy.cli.download(model)
-                return spacy.load(model)
-            except Exception:
-                return None
+            logger.warning("spaCy model '%s' not found — running regex-only", model)
+            return None
+
+
+# ---------------------------------------------------------------------------
+# Module-level helpers
+# ---------------------------------------------------------------------------
+
+def _crosswalk_to_dict(result: Any) -> dict[str, Any]:
+    if result is None:
+        return {"primary": {"framework": "ISCO-08", "code": "9999", "label": "Unclassified", "match_score": 0.0}}
+    return {
+        "primary": {
+            "framework": result.primary.framework,
+            "code": result.primary.code,
+            "label": result.primary.label,
+            "match_score": result.primary.match_score,
+        },
+        "secondary": [
+            {"framework": s.framework, "code": s.code, "label": s.label, "match_score": s.match_score}
+            for s in (result.secondary or [])
+        ],
+    }
+
+
+def _safe_display_name(name: str) -> str:
+    """Privacy-safe display name: first name + last initial if available."""
+    parts = name.split()
+    if len(parts) >= 2:
+        return f"{parts[0]} {parts[-1][0]}."
+    return parts[0] if parts else "Anonymous"
+
+
+def _country_region(country: str) -> str:
+    return {
+        "GH": "Greater Accra",
+        "AM": "",
+    }.get(country.upper(), "")
+
+
+def _ussd_shortcode(country: str) -> str:
+    return {"GH": "*789#", "AM": "*404#"}.get(country.upper(), "*789#")
+
+
+def _build_sms(
+    pseudonym: str,
+    age: Optional[int],
+    location: str,
+    skills: list[dict[str, Any]],
+    wage_score: int,
+    growth_score: int,
+    country: str,
+) -> str:
+    """Build SMS summary ≤ 160 characters."""
+    age_part = f", {age}" if age else ""
+    loc_part = f", {location}" if location else ""
+    skill_labels = "+".join(s["name"] for s in skills[:2])
+    sender = "UNMAPPED"
+    # target format matching mock.ts sample style
+    text = (
+        f"{sender}: {pseudonym}{age_part}{loc_part}. "
+        f"{skill_labels}. "
+        f"Wage {wage_score}/100 Growth {growth_score}/100. "
+        f"Reply 1 for plan."
+    )
+    if len(text) > 160:
+        text = (
+            f"{sender}: {pseudonym}{loc_part}. "
+            f"{skill_labels}. W:{wage_score} G:{growth_score}"
+        )[:160]
+    return text[:160]
+
+
+def _build_ussd_menu(
+    shortcode: str,
+    pseudonym: str,
+    skills: list[dict[str, Any]],
+    wage_score: int,
+    growth_score: int,
+) -> list[str]:
+    """Build USSD menu — 4-8 lines, ≤ 40 chars each."""
+    lines = [
+        f"UNMAPPED {shortcode}"[:40],
+        f"1. View my profile"[:40],
+        f"2. Wage signal: {wage_score}/100"[:40],
+        f"3. Growth signal: {growth_score}/100"[:40],
+    ]
+    for i, skill in enumerate(skills[:3], start=4):
+        lines.append(f"{i}. {skill['name']}"[:40])
+    lines.append("0. Exit"[:40])
+    return lines[:8]

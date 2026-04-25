@@ -1,0 +1,89 @@
+{
+  "country_code": "AM",
+  "country_name": "Armenia",
+  "region": "MENA",
+  "context_tag": "urban_informal",
+  "languages": {
+    "primary": "hy-AM",
+    "supported": ["hy-AM", "ru", "en"],
+    "low_resource": ["hy-AM"]
+  },
+  "informal_economy": {
+    "enabled": true,
+    "gdp_share_pct": 42.0,
+    "sector_tags": [
+      "education_tutoring",
+      "translation_services",
+      "digital_services",
+      "food_processing",
+      "craft_textiles",
+      "transport_logistics",
+      "retail_trade",
+      "beauty_wellness",
+      "agriculture_rural"
+    ],
+    "zero_credential_default": false
+  },
+  "delivery_channels": {
+    "sms": {
+      "enabled": true,
+      "max_chars": 160,
+      "provider": "beeline_am"
+    },
+    "ussd": {
+      "enabled": true,
+      "max_depth": 3,
+      "menu_char_limit": 182
+    },
+    "web": {
+      "enabled": true,
+      "spa_url": "https://unmapped.io/am"
+    },
+    "whatsapp": {
+      "enabled": true
+    }
+  },
+  "taxonomy_config": {
+    "primary_framework": "ISCO-08",
+    "crosswalk_targets": ["ESCO", "O*NET", "SDG"],
+    "local_skill_overrides": [
+      {
+        "local_label": "english tutoring",
+        "canonical_code": "2320",
+        "framework": "ISCO-08"
+      },
+      {
+        "local_label": "tutoring",
+        "canonical_code": "2320",
+        "framework": "ISCO-08"
+      },
+      {
+        "local_label": "translation",
+        "canonical_code": "2643",
+        "framework": "ISCO-08"
+      },
+      {
+        "local_label": "translator",
+        "canonical_code": "2643",
+        "framework": "ISCO-08"
+      },
+      {
+        "local_label": "idram",
+        "canonical_code": "3312",
+        "framework": "ISCO-08"
+      }
+    ]
+  },
+  "confidence_priors": {
+    "self_report_alpha": 2.5,
+    "self_report_beta": 2.5,
+    "peer_endorsement_weight": 0.40,
+    "transaction_evidence_weight": 0.50
+  },
+  "profile_card": {
+    "template": "am_urban_v1",
+    "badge_color_scheme": "ararat_cool",
+    "currency_symbol": "AMD",
+    "phone_prefix": "+374"
+  }
+}
