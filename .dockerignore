@@ -1,0 +1,42 @@
+# Backend image build context — keep it lean.
+# Frontend has its own Dockerfile.dev with its own .dockerignore.
+
+# VCS / IDE / OS
+.git
+.gitignore
+.gitattributes
+.idea
+.vscode
+.claude
+.DS_Store
+Thumbs.db
+
+# Frontend tree (built by a separate image)
+frontend
+
+# Docs / project meta — not needed at runtime
+docs
+README.md
+CHANGELOG.md
+PROJECT_LOG.md
+LICENSE
+
+# Python / test caches
+__pycache__
+*.py[cod]
+.venv
+venv
+env
+.pytest_cache
+.coverage
+htmlcov
+.mypy_cache
+.ruff_cache
+*.log
+*.sqlite3
+.env
+.env.local
+
+# Local notes
+*.swp
+*.swo

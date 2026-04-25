@@ -1,14 +1,11 @@
+# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
 .eggs/
-dist/
-build/
 .venv/
 venv/
 env/
-.env
-*.env.local
 .pytest_cache/
 .coverage
 htmlcov/
@@ -16,8 +13,15 @@ htmlcov/
 .ruff_cache/
 *.log
 *.sqlite3
+
+# Node / Vite
 node_modules/
-.DS_Store
+**/node_modules/
+**/dist/
+dist/
+build/
+**/.vite/
+
 # IDE / tool dirs
 .idea/
 .vscode/
@@ -28,14 +32,9 @@ node_modules/
 .DS_Store
 Thumbs.db
 
-# Node
-node_modules/
-**/node_modules/
-**/dist/
-**/.vite/
-
 # Env
 .env
 .env.local
+*.env.local
 **/.env
 **/.env.local

@@ -2,11 +2,205 @@
 
 Format per Section 12.4 of UNMAPPED Protocol v0.2 spec.
 
+> Per anti-conflict rule: new entries are added at the top of this file.
+> Older entries below are preserved verbatim (append-only).
+
 ---
 
 ## LOG ENTRY: 2026-04-26
 
-**Entry ID:** `LOG-0001`
+**Entry ID:** `LOG-0003`
+**Version:** `v0.3.0-sse-alpha.3`
+**Branch:** `module/m1-sse-ui` (rebased onto `origin/dev`)
+**Author:** Claude 2 (frontend / DevOps owner)
+**Status:** COMPLETE — full-stack docker-compose authored, lint+build+tests green
+
+---
+
+### 1. Change Type
+`feat` (compose stack) + `chore` (rebase integration). No external API contract change.
+
+---
+
+### 2. Primitives Affected
+
+| Primitive | Action | File |
+|---|---|---|
+| Build/Deploy | NEW | `docker-compose.yml` (rewritten), `frontend/Dockerfile.dev` (new), `.dockerignore` (new), `frontend/.dockerignore` (new) |
+| Frontend HTTP client | CHANGED | `frontend/src/lib/api.ts` — relative `/api/v1/*` URLs always; `VITE_API_URL` is now interpreted as the *proxy target*, not a browser-side origin |
+| Vite config | CHANGED | `frontend/vite.config.ts` — adds `server.proxy['/api'] → ${VITE_API_URL}` keyed off `loadEnv` |
+| Test suite | CHANGED | `frontend/src/lib/__tests__/api.test.ts` — asserts on relative URL fetch; obsolete "empty URL → demo" case removed |
+| Frontend env defaults | CHANGED | `frontend/.env.example` — documents the three modes (standalone / docker-compose / demo) |
+
+---
+
+### 3. Summary of Changes
+
+#### 3.1 Branch integration (anti-conflict rule)
+`develop` does not exist on origin. The actual integration branch is
+`origin/dev`, with PR #1 (backend, `module/m1-sse`) and PR #2 (frontend
+alpha.1, `module/m1-sse-ui`) already merged. Ran
+`git pull --rebase origin dev` from `module/m1-sse-ui`; alpha.2 + the
+test/build fixes replayed cleanly with no manual conflict resolution
+(non-overlapping line edits across PROJECT_LOG, CHANGELOG, .gitignore).
+
+After the rebase the working tree contains both halves of the project
+in one place — backend (`app/`, `config/`, `schemas/`, `tests/`,
+`Dockerfile`, `requirements*.txt`) plus frontend (`frontend/`).
+PROJECT_LOG and CHANGELOG were preserved verbatim per the append-only
+rule; this entry is added at the top per the same rule.
+
+#### 3.2 Full-stack docker-compose
+Rewrote the root `docker-compose.yml` (which previously only ran the
+backend as `sse-api`):
+
+- Service renamed to `backend` (matches user spec for "internal
+  communication via service name").
+- New `frontend` service builds from `frontend/Dockerfile.dev`, runs
+  `vite dev --host 0.0.0.0 --strictPort`, bind-mounts the source for
+  hot reload, keeps `node_modules` in an anonymous volume so the
+  host's lockfile/state never leaks in.
+- Both services have healthchecks + `restart: unless-stopped`.
+  `frontend` `depends_on: backend (service_healthy)`.
+- Dedicated bridge network `unmapped` so service-name DNS works.
+- Backend `CORS_ORIGINS` extended to include `http://frontend:5173` for
+  intra-cluster CORS preflights (browser-origin entries kept too).
+- Removed legacy `version: "3.9"` (Compose v2 ignores it).
+
+#### 3.3 Browser-vs-container DNS resolution
+
+The brief specified `VITE_API_URL=http://backend:8000`, but a browser
+on the developer's host **cannot resolve** the docker-internal hostname
+`backend`. Resolved this by promoting `VITE_API_URL` to a
+**Vite-dev-server proxy target** rather than a browser-side base URL:
+
+- `api.ts` now always fetches `/api/v1/parse` (relative, same-origin).
+- `vite.config.ts` reads `VITE_API_URL` via `loadEnv` and configures
+  `server.proxy['/api'] → ${VITE_API_URL}`. Vite, running inside the
+  frontend container, resolves `backend` against docker DNS and forwards
+  the call.
+- Net effect: same SPA code path works for standalone dev
+  (`VITE_API_URL=http://localhost:8000`), docker-compose
+  (`VITE_API_URL=http://backend:8000`, set in the compose service), and
+  pure-mock demo (`VITE_DEMO_MODE=true`, no fetch).
+
+#### 3.4 Verification
+
+- `docker compose config` — validates clean (full normalized output
+  inspected: services, networks, volumes, healthchecks all parse).
+- `docker compose build` / `up` — **NOT** executed in this session: the
+  Docker Desktop Linux engine pipe was not responsive on the dev box
+  (`open //./pipe/dockerDesktopLinuxEngine: file not found`). Verification
+  step belongs to the user (Docker Desktop running) — see Section 7.
+- `npm run lint` — clean.
+- `npm test` — 8 suites / 25 cases passing (the obsolete "empty
+  VITE_API_URL → demo" case was deliberately removed).
+- `npm run build` — 187 KB JS / 61 KB gz, 4 KB CSS gz, ~2 s.
+
+---
+
+### 4. Architecture Decisions
+
+**4.1 Vite proxy over browser-side absolute URL**
+The user spec asks for `VITE_API_URL=http://backend:8000`, but browsers
+can't resolve docker-only DNS names. Treating it as a proxy target
+honors the spirit of the spec (frontend talks to backend by service
+name) without breaking from the browser's perspective. Same-origin =
+no CORS preflight = simpler.
+
+**4.2 Bind-mount source, anonymous-volume node_modules**
+The classic Node-on-docker pattern. Without the anonymous volume the
+host's `node_modules/` (with its native bindings compiled for the host
+OS) would shadow the container's, breaking esbuild and friends.
+
+**4.3 Healthcheck-gated startup ordering**
+`depends_on: backend (service_healthy)` ensures the SPA doesn't try
+to proxy before FastAPI has loaded spaCy and warmed the parser cache.
+Backend's `start_period: 30s` accommodates the cold-start cost.
+
+**4.4 Two .dockerignore files**
+Root `.dockerignore` excludes `frontend/` from the backend image. A
+separate `frontend/.dockerignore` excludes `node_modules`, `dist`,
+`.tsbuildinfo`, etc. from the frontend image. Without these, the
+backend image would balloon with frontend artefacts and vice versa.
+
+---
+
+### 5. Files Created/Modified
+
+```
+docker-compose.yml                  REWRITTEN — backend + frontend, healthchecks, network
+.dockerignore                       NEW — scopes the backend image build
+frontend/Dockerfile.dev             NEW — node:20-alpine + vite --host 0.0.0.0
+frontend/.dockerignore              NEW
+frontend/vite.config.ts             CHANGED — server.proxy keyed off VITE_API_URL
+frontend/src/lib/api.ts             CHANGED — always-relative /api/v1/parse
+frontend/src/lib/__tests__/api.test.ts CHANGED — relative-URL assertion, dropped obsolete case
+frontend/.env.example               CHANGED — three-mode documentation
+.gitignore                          CLEANED — deduped after rebase auto-merge
+```
+
+---
+
+### 6. Backward Compatibility
+- `VITE_API_URL` semantic shifted from "browser-side origin" to "Vite
+  proxy target". Any downstream user of alpha.2 who pointed it at a
+  browser-resolvable hostname continues to work — the proxy will still
+  forward to it. No change to the public `/api/v1/parse` contract.
+- Internal SPA test that relied on "empty `VITE_API_URL` ⇒ demo mode"
+  is removed; demo mode is now controlled exclusively by
+  `VITE_DEMO_MODE=true`.
+
+---
+
+### 7. Test Plan
+
+```bash
+# Frontend (already verified locally)
+cd frontend && npm install && npm run lint && npm test && npm run build
+
+# Backend (run on a machine with the spaCy model fetchable)
+pip install -r requirements-dev.txt
+python -m spacy download xx_ent_wiki_sm
+pytest tests/ -v --cov=app
+
+# Full-stack (NOT run in this session — Docker Desktop daemon offline)
+docker compose up --build
+# Expected:
+#   - http://localhost:5173 — SPA loads, profile card renders
+#   - http://localhost:8000/health — {"status":"ok",...}
+#   - "Try the Amara story" → submit → "Live parser" badge with real
+#     processing_time_ms / parser_version from /api/v1/parse
+#   - http://localhost:8000/docs — FastAPI Swagger UI
+```
+
+---
+
+### 8. Rollback Path
+1. `git revert <alpha.3 head>` — restores alpha.2 SPA + standalone backend.
+2. `docker compose down --volumes --remove-orphans` to clear local state.
+3. The compose stack is fully stateless (no DB), so rollback is safe at any time.
+
+---
+
+### 9. Instructions for Claude 1 (handoff)
+- The Vite proxy approach means CORS preflights from the SPA disappear in
+  docker-compose mode (same-origin from browser POV). You can leave
+  `CORS_ORIGINS` as-is — it still matters for standalone dev where the
+  browser hits the backend directly on port 8000.
+- AM (Armenia) `country_profile` is the natural next backend task —
+  the SPA is already fully wired for it; today AM falls back to the
+  bundled mock with an "Offline fallback" badge.
+- A multi-stage production frontend Dockerfile (`npm run build` → nginx)
+  is the obvious follow-up; `Dockerfile.dev` was scoped to dev only.
+
+---
+
+*End of LOG-0003*
+
+---
+
+
 **Version:** `v0.3.0-alpha.1`
 **Branch:** `module/m1-sse`
 **Author:** Claude (Senior Backend Architect — SSE Core)

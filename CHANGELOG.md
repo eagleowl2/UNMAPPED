@@ -2,6 +2,71 @@
 
 All notable changes to UNMAPPED follow [Semantic Versioning](https://semver.org/) and [Keep a Changelog](https://keepachangelog.com/).
 
+> Newer entries are added at the top. Older entries below are preserved
+> verbatim (append-only).
+
+---
+
+## [0.3.0-sse-alpha.3] — 2026-04-26
+
+### Branch: `module/m1-sse-ui` (rebased onto `origin/dev`)
+
+### Added
+- **Full-stack `docker-compose.yml`** — `backend` (FastAPI + spaCy)
+  and `frontend` (Vite dev-server) wired on a private bridge network.
+  Healthchecks, restart policies, hot-reload bind-mounts, and
+  `depends_on: backend (service_healthy)` for the frontend.
+- **`frontend/Dockerfile.dev`** — `node:20-alpine` running
+  `vite dev --host 0.0.0.0 --strictPort`. Layer-cached
+  `npm install`; source bind-mounted at runtime.
+- **Root `.dockerignore`** scopes the backend image (excludes
+  `frontend/`, docs, tool dirs).
+- **`frontend/.dockerignore`** scopes the frontend image (excludes
+  `node_modules`, `dist`, `.tsbuildinfo`, `.vite`).
+
+### Changed
+- **Browser-side fetch is now always same-origin.** `api.ts` requests
+  the relative `/api/v1/parse` URL. `VITE_API_URL` is reinterpreted
+  as the *Vite dev-server proxy target* (read in `vite.config.ts`
+  via `loadEnv`), which lets the SPA work cleanly under
+  `docker-compose` (proxy to `http://backend:8000`), standalone dev
+  (proxy to `http://localhost:8000`), and pure-mock demo
+  (`VITE_DEMO_MODE=true`) — all from one code path. CORS preflights
+  vanish in docker mode.
+- **Renamed compose service** `sse-api` → `backend` to match the
+  user-spec for service-name based internal communication.
+- **Rebased `module/m1-sse-ui` onto `origin/dev`** (the actual
+  integration branch — `develop` does not exist on origin). All
+  alpha.2 commits replayed cleanly with no manual conflict
+  resolution; PROJECT_LOG and CHANGELOG entries preserved verbatim.
+- **`frontend/.env.example`** — documents the three runtime modes
+  (standalone / docker-compose / demo).
+- **Backend `CORS_ORIGINS`** in compose extended with
+  `http://frontend:5173` for intra-cluster calls.
+
+### Removed
+- Obsolete legacy `version: "3.9"` line at the top of compose
+  (Compose v2 ignores it with a warning).
+- Obsolete API test asserting "empty `VITE_API_URL` ⇒ demo mode" —
+  demo mode is now controlled exclusively by `VITE_DEMO_MODE=true`.
+
+### Verified locally
+- `docker compose config` — clean (full normalized config inspected).
+- `npm run lint` — clean.
+- `npm test` — 8 suites / 25 cases passing.
+- `npm run build` — 187 KB JS / 61 KB gz, 4 KB CSS gz, ~2 s.
+
+### NOT yet verified in this session
+- `docker compose up --build` — Docker Desktop's Linux engine pipe
+  was not responsive on the dev box. Verification path documented
+  in `PROJECT_LOG.md` Section 7 (`LOG-0003`).
+
+### Backward compatibility
+- `VITE_API_URL` semantic shifted from "browser origin" to "Vite
+  proxy target". Existing alpha.2 standalone setups continue to
+  work — the proxy still forwards correctly. No change to the public
+  `POST /api/v1/parse` contract.
+
 ---
 
 ## [0.3.0-alpha.1] — 2026-04-26 — v0.3-sse-alpha.1
