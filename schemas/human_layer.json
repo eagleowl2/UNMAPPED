@@ -1,0 +1,140 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://unmapped.protocol/schemas/v0.2/human_layer.json",
+  "title": "HumanLayer",
+  "description": "UNMAPPED Protocol v0.2 Section 7 — Human-facing output layer: profile card, SMS digest, and USSD tree generated from one or more VSS objects.",
+  "type": "object",
+  "required": ["hl_id", "schema_version", "created_at", "user_id", "profile_card", "sms_summary", "ussd_tree"],
+  "additionalProperties": false,
+  "properties": {
+    "hl_id": {
+      "type": "string",
+      "pattern": "^hl_[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+    },
+    "schema_version": { "type": "string", "pattern": "^v0\\.[0-9]+$" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "user_id": { "type": "string" },
+    "vss_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "VSS IDs this Human Layer is derived from"
+    },
+    "profile_card": {
+      "type": "object",
+      "required": ["display_name", "headline", "skills_summary", "location"],
+      "additionalProperties": false,
+      "properties": {
+        "display_name": { "type": "string" },
+        "headline": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "One-line professional headline"
+        },
+        "location": { "type": "string" },
+        "languages": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "skills_summary": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["label", "confidence_tier", "confidence_score"],
+            "properties": {
+              "label": { "type": "string" },
+              "confidence_tier": {
+                "type": "string",
+                "enum": ["emerging", "developing", "established", "expert"]
+              },
+              "confidence_score": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+              "taxonomy_code": { "type": "string" },
+              "category": { "type": "string" }
+            }
+          },
+          "minItems": 1
+        },
+        "zero_credential_badge": {
+          "type": "boolean",
+          "description": "Display zero-credential achievement badge"
+        },
+        "top_skill": { "type": "string" },
+        "bio_snippet": {
+          "type": "string",
+          "maxLength": 280,
+          "description": "Auto-generated bio from parsed input"
+        },
+        "rendered_html": {
+          "type": "string",
+          "description": "Jinja2-rendered HTML profile card (optional, for web channel)"
+        }
+      }
+    },
+    "sms_summary": {
+      "type": "object",
+      "required": ["text", "char_count"],
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "SMS-ready skill signal, max 160 chars"
+        },
+        "char_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 160
+        },
+        "language": { "type": "string" }
+      }
+    },
+    "ussd_tree": {
+      "type": "object",
+      "required": ["root"],
+      "additionalProperties": false,
+      "properties": {
+        "root": {
+          "$ref": "#/definitions/ussd_node"
+        },
+        "session_timeout_sec": {
+          "type": "integer",
+          "default": 180
+        }
+      }
+    }
+  },
+  "definitions": {
+    "ussd_node": {
+      "type": "object",
+      "required": ["id", "text"],
+      "properties": {
+        "id": { "type": "string" },
+        "text": {
+          "type": "string",
+          "maxLength": 182,
+          "description": "USSD display text, max 182 chars"
+        },
+        "input_type": {
+          "type": "string",
+          "enum": ["none", "numeric", "text"],
+          "default": "numeric"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["key", "label", "next"],
+            "properties": {
+              "key": { "type": "string" },
+              "label": { "type": "string" },
+              "next": { "$ref": "#/definitions/ussd_node" }
+            }
+          }
+        },
+        "is_terminal": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    }
+  }
+}

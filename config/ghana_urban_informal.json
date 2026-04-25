@@ -1,0 +1,100 @@
+{
+  "country_code": "GH",
+  "country_name": "Ghana",
+  "region": "SSA",
+  "context_tag": "urban_informal",
+  "languages": {
+    "primary": "en-GH",
+    "supported": ["en-GH", "ak-GH", "gaa", "ee-GH", "ha-GH"],
+    "low_resource": ["ak-GH", "gaa", "ee-GH"]
+  },
+  "informal_economy": {
+    "enabled": true,
+    "gdp_share_pct": 68.7,
+    "sector_tags": [
+      "mobile_repair",
+      "electronics_repair",
+      "street_trade",
+      "transport_logistics",
+      "food_processing",
+      "tailoring_textiles",
+      "construction_artisan",
+      "agri_processing",
+      "digital_services",
+      "beauty_wellness"
+    ],
+    "zero_credential_default": true
+  },
+  "delivery_channels": {
+    "sms": {
+      "enabled": true,
+      "max_chars": 160,
+      "provider": "africas_talking"
+    },
+    "ussd": {
+      "enabled": true,
+      "max_depth": 3,
+      "menu_char_limit": 182
+    },
+    "web": {
+      "enabled": true,
+      "spa_url": "https://unmapped.io/gh"
+    },
+    "whatsapp": {
+      "enabled": true
+    }
+  },
+  "taxonomy_config": {
+    "primary_framework": "ISCO-08",
+    "crosswalk_targets": ["ESCO", "O*NET", "SDG"],
+    "local_skill_overrides": [
+      {
+        "local_label": "phone fixer",
+        "canonical_code": "7421",
+        "framework": "ISCO-08"
+      },
+      {
+        "local_label": "phone repairer",
+        "canonical_code": "7421",
+        "framework": "ISCO-08"
+      },
+      {
+        "local_label": "fixing phones",
+        "canonical_code": "7421",
+        "framework": "ISCO-08"
+      },
+      {
+        "local_label": "mobile technician",
+        "canonical_code": "7421",
+        "framework": "ISCO-08"
+      },
+      {
+        "local_label": "kiosk operator",
+        "canonical_code": "5221",
+        "framework": "ISCO-08"
+      },
+      {
+        "local_label": "coding",
+        "canonical_code": "2512",
+        "framework": "ISCO-08"
+      },
+      {
+        "local_label": "software development",
+        "canonical_code": "2512",
+        "framework": "ISCO-08"
+      }
+    ]
+  },
+  "confidence_priors": {
+    "self_report_alpha": 2.0,
+    "self_report_beta": 3.0,
+    "peer_endorsement_weight": 0.35,
+    "transaction_evidence_weight": 0.45
+  },
+  "profile_card": {
+    "template": "gh_urban_v1",
+    "badge_color_scheme": "kente_warm",
+    "currency_symbol": "GHS",
+    "phone_prefix": "+233"
+  }
+}
