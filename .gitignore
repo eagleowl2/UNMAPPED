@@ -18,3 +18,24 @@ htmlcov/
 *.sqlite3
 node_modules/
 .DS_Store
+# IDE / tool dirs
+.idea/
+.vscode/
+.claude/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+**/node_modules/
+**/dist/
+**/.vite/
+
+# Env
+.env
+.env.local
+**/.env
+**/.env.local
