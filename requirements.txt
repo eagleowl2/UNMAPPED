@@ -1,0 +1,37 @@
+# UNMAPPED Protocol v0.2 — Skills Signal Engine
+# Python 3.11+
+
+# Web framework
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+
+# Data validation
+pydantic>=2.7.0
+pydantic-settings>=2.2.0
+
+# JSON Schema validation
+jsonschema>=4.22.0
+
+# NLP
+spacy>=3.7.4
+# spaCy multilingual model (install separately):
+#   python -m spacy download xx_ent_wiki_sm
+# HuggingFace (optional — for multilingual transformers)
+transformers>=4.40.0
+torch>=2.2.0  # CPU-only; override with torch+cpu wheel for Docker
+
+# Taxonomy graph
+networkx>=3.3
+
+# Bayesian inference
+scipy>=1.13.0  # Beta distribution credible intervals
+# Optional: PyMC/Bambi for full MCMC (heavy; disabled for MVP)
+# pymc>=5.13.0
+# bambi>=0.13.0
+
+# Templating
+jinja2>=3.1.4
+
+# Utilities
+python-multipart>=0.0.9
+httpx>=0.27.0  # for TestClient

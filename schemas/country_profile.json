@@ -1,0 +1,150 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://unmapped.protocol/schemas/v0.2/country_profile.json",
+  "title": "CountryProfile",
+  "description": "UNMAPPED Protocol v0.2 Section 4 — Country/context configuration for localised skill taxonomy, language support, and delivery channels.",
+  "type": "object",
+  "required": ["country_code", "country_name", "languages", "informal_economy", "delivery_channels", "taxonomy_config"],
+  "additionalProperties": false,
+  "properties": {
+    "country_code": {
+      "type": "string",
+      "pattern": "^[A-Z]{2}$",
+      "description": "ISO 3166-1 alpha-2 country code"
+    },
+    "country_name": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string",
+      "enum": ["SSA", "MENA", "SASIA", "EASIA", "LAC", "GLOBAL"]
+    },
+    "context_tag": {
+      "type": "string",
+      "description": "e.g. 'urban_informal', 'rural_agricultural', 'peri_urban'"
+    },
+    "languages": {
+      "type": "object",
+      "required": ["primary", "supported"],
+      "properties": {
+        "primary": {
+          "type": "string",
+          "description": "BCP-47 language tag"
+        },
+        "supported": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "BCP-47 tags of all supported languages"
+        },
+        "low_resource": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Languages requiring fallback/transliteration support"
+        }
+      }
+    },
+    "informal_economy": {
+      "type": "object",
+      "required": ["enabled", "sector_tags"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "gdp_share_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "sector_tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Dominant informal sectors, e.g. ['mobile_repair', 'street_trade', 'agri_processing']"
+        },
+        "zero_credential_default": {
+          "type": "boolean",
+          "description": "If true, all skills default to zero-credential evidence chain"
+        }
+      }
+    },
+    "delivery_channels": {
+      "type": "object",
+      "required": ["sms", "ussd"],
+      "properties": {
+        "sms": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "max_chars": { "type": "integer", "default": 160 },
+            "provider": { "type": "string" }
+          }
+        },
+        "ussd": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "max_depth": { "type": "integer", "default": 3 },
+            "menu_char_limit": { "type": "integer", "default": 182 }
+          }
+        },
+        "web": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "spa_url": { "type": "string", "format": "uri" }
+          }
+        },
+        "whatsapp": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "taxonomy_config": {
+      "type": "object",
+      "required": ["primary_framework", "crosswalk_targets"],
+      "properties": {
+        "primary_framework": {
+          "type": "string",
+          "enum": ["ISCO-08", "O*NET", "ESCO", "NAICS", "LOCAL"],
+          "description": "Primary occupational taxonomy"
+        },
+        "crosswalk_targets": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["ISCO-08", "O*NET", "ESCO", "SDG", "ILO_STAT"]
+          }
+        },
+        "local_skill_overrides": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["local_label", "canonical_code", "framework"],
+            "properties": {
+              "local_label": { "type": "string" },
+              "canonical_code": { "type": "string" },
+              "framework": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "confidence_priors": {
+      "type": "object",
+      "description": "Bayesian priors for this context (Section 5.3)",
+      "properties": {
+        "self_report_alpha": { "type": "number", "default": 2.0 },
+        "self_report_beta": { "type": "number", "default": 3.0 },
+        "peer_endorsement_weight": { "type": "number", "minimum": 0, "maximum": 1 },
+        "transaction_evidence_weight": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "profile_card": {
+      "type": "object",
+      "description": "Human Layer profile card display config (Section 7)",
+      "properties": {
+        "template": { "type": "string" },
+        "badge_color_scheme": { "type": "string" },
+        "currency_symbol": { "type": "string" },
+        "phone_prefix": { "type": "string" }
+      }
+    }
+  }
+}

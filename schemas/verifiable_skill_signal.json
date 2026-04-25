@@ -1,0 +1,198 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://unmapped.protocol/schemas/v0.2/verifiable_skill_signal.json",
+  "title": "VerifiableSkillSignal",
+  "description": "UNMAPPED Protocol v0.2 Section 6.1 — Core VSS primitive linking a USER entity to one SKILL entity with evidence chain and Bayesian confidence.",
+  "type": "object",
+  "required": ["vss_id", "schema_version", "created_at", "user", "skill", "evidence_chain", "confidence", "taxonomy_crosswalk"],
+  "additionalProperties": false,
+  "properties": {
+    "vss_id": {
+      "type": "string",
+      "pattern": "^vss_[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+      "description": "Canonical VSS identifier: vss_ + UUID v4"
+    },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^v0\\.[0-9]+$",
+      "description": "UNMAPPED schema version, e.g. v0.2"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "user": {
+      "type": "object",
+      "required": ["user_id", "source_text_hash"],
+      "additionalProperties": false,
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "pattern": "^usr_[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+        },
+        "display_name": { "type": "string" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "country_code": { "type": "string", "pattern": "^[A-Z]{2}$" },
+            "city": { "type": "string" },
+            "context_tag": { "type": "string" }
+          }
+        },
+        "languages": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "source_text_hash": {
+          "type": "string",
+          "description": "SHA-256 hex of original raw input text"
+        },
+        "zero_credential": {
+          "type": "boolean",
+          "description": "True if user has no formal credentials — zero-credential path"
+        }
+      }
+    },
+    "skill": {
+      "type": "object",
+      "required": ["skill_id", "label", "category", "source_phrases"],
+      "additionalProperties": false,
+      "properties": {
+        "skill_id": {
+          "type": "string",
+          "pattern": "^skl_[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+        },
+        "label": {
+          "type": "string",
+          "description": "Canonical English skill label"
+        },
+        "label_local": {
+          "type": "string",
+          "description": "Skill label in detected local language"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "technical", "digital", "trade", "agricultural", "care",
+            "creative", "managerial", "language", "financial", "other"
+          ]
+        },
+        "subcategory": { "type": "string" },
+        "source_phrases": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "Raw phrases from input that evidence this skill"
+        },
+        "experience_signals": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Detected experience indicators (years, clients, volume, etc.)"
+        }
+      }
+    },
+    "evidence_chain": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["evidence_type", "raw_signal", "weight"],
+        "properties": {
+          "evidence_type": {
+            "type": "string",
+            "enum": [
+              "self_report",
+              "peer_endorsement",
+              "transaction_record",
+              "digital_footprint",
+              "formal_credential",
+              "community_attestation"
+            ]
+          },
+          "raw_signal": { "type": "string" },
+          "normalized_signal": { "type": "string" },
+          "weight": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+          "source": { "type": "string" },
+          "timestamp": { "type": "string", "format": "date-time" }
+        }
+      },
+      "minItems": 1
+    },
+    "confidence": {
+      "type": "object",
+      "required": ["score", "method", "alpha", "beta"],
+      "additionalProperties": false,
+      "properties": {
+        "score": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Posterior mean of Beta(alpha, beta) — primary confidence signal"
+        },
+        "lower_95": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "upper_95": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "alpha": { "type": "number", "minimum": 0.0 },
+        "beta": { "type": "number", "minimum": 0.0 },
+        "method": {
+          "type": "string",
+          "enum": ["bayesian_beta", "rule_based", "ml_classifier"]
+        },
+        "tier": {
+          "type": "string",
+          "enum": ["emerging", "developing", "established", "expert"],
+          "description": "Human-readable confidence tier"
+        }
+      }
+    },
+    "taxonomy_crosswalk": {
+      "type": "object",
+      "required": ["primary"],
+      "additionalProperties": false,
+      "properties": {
+        "primary": {
+          "type": "object",
+          "required": ["framework", "code", "label"],
+          "properties": {
+            "framework": { "type": "string" },
+            "code": { "type": "string" },
+            "label": { "type": "string" },
+            "match_score": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+          }
+        },
+        "secondary": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["framework", "code", "label"],
+            "properties": {
+              "framework": { "type": "string" },
+              "code": { "type": "string" },
+              "label": { "type": "string" },
+              "match_score": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+            }
+          }
+        }
+      }
+    },
+    "human_layer_ref": {
+      "type": "string",
+      "description": "Reference ID to the HumanLayer object generated from this VSS"
+    },
+    "country_code": {
+      "type": "string",
+      "pattern": "^[A-Z]{2}$"
+    },
+    "processing_meta": {
+      "type": "object",
+      "properties": {
+        "parser_version": { "type": "string" },
+        "model_id": { "type": "string" },
+        "detected_language": { "type": "string" },
+        "processing_time_ms": { "type": "number" }
+      }
+    }
+  }
+}
