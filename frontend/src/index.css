@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-sun-500 ring-offset-2 ring-offset-clay-50;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl bg-white/85 backdrop-blur-sm shadow-card ring-1 ring-clay-200/60;
+  }
+
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5
+           text-sm font-semibold transition-colors disabled:cursor-not-allowed
+           disabled:opacity-60;
+  }
+
+  .btn-primary {
+    @apply btn bg-clay-900 text-clay-50 hover:bg-clay-800;
+  }
+
+  .btn-ghost {
+    @apply btn bg-transparent text-clay-800 hover:bg-clay-100;
+  }
+}
+
+/* Pulse for the network entry point on the map */
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.7;
+  }
+  80%,
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+.pulse-ring {
+  animation: pulse-ring 1.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+  transform-origin: center;
+}
+
+/* Reduced motion respects user preference */
+@media (prefers-reduced-motion: reduce) {
+  .pulse-ring {
+    animation: none;
+  }
+}
