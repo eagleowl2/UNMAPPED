@@ -59,6 +59,8 @@ describe('App — full input → profile flow', () => {
     await waitFor(() =>
       expect(screen.getByRole('heading', { level: 2, name: /Ani/i })).toBeInTheDocument(),
     );
-    expect(screen.getByText(/Gyumri/i)).toBeInTheDocument();
+    // Gyumri appears in the profile card location AND in the USSD node text;
+    // either presence is fine — we just want to confirm the AM mock loaded.
+    expect(screen.getAllByText(/Gyumri/i).length).toBeGreaterThan(0);
   });
 });

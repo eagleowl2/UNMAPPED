@@ -13,13 +13,14 @@ describe('ProfileCard', () => {
     expect(screen.getByText(/Phone Repair & Software Development/i)).toBeInTheDocument();
     expect(screen.getByText(/Zero-credential verified/i)).toBeInTheDocument();
 
-    // Both skills surface with their tier chips and ISCO codes
-    expect(screen.getByText('Phone Repair')).toBeInTheDocument();
-    expect(screen.getByText('Software Development')).toBeInTheDocument();
+    // Both skills surface in the skills section as <h4> headings
+    expect(screen.getByRole('heading', { level: 4, name: 'Phone Repair' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 4, name: 'Software Development' })).toBeInTheDocument();
     expect(screen.getByText('Established')).toBeInTheDocument();
     expect(screen.getByText('Developing')).toBeInTheDocument();
-    expect(screen.getByText('ISCO-08:7421')).toBeInTheDocument();
-    expect(screen.getByText('ISCO-08:2512')).toBeInTheDocument();
+    // ISCO codes render in both the SignalBar and the evidence-chain reveal.
+    expect(screen.getAllByText('ISCO-08:7421').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('ISCO-08:2512').length).toBeGreaterThan(0);
 
     // Confidence percentages render rounded
     expect(screen.getByText('68%')).toBeInTheDocument();
