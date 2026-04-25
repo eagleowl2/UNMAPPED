@@ -1,45 +1,69 @@
-import type { Signal } from '@/lib/types';
+import type { ConfidenceTier, SkillSummaryEntry } from '@/lib/types';
 
 interface Props {
-  label: string;
-  signal: Signal;
-  tone: 'wage' | 'growth';
+  entry: SkillSummaryEntry;
 }
 
-const TONE = {
-  wage: { fill: 'bg-signal-wage', text: 'text-signal-wage' },
-  growth: { fill: 'bg-signal-growth', text: 'text-signal-growth' },
-} as const;
+const TIER: Record<ConfidenceTier, { label: string; bar: string; chip: string; pct: string }> = {
+  emerging: {
+    label: 'Emerging',
+    bar: 'bg-clay-300',
+    chip: 'bg-clay-100 text-clay-700',
+    pct: 'text-clay-600',
+  },
+  developing: {
+    label: 'Developing',
+    bar: 'bg-signal-growth/70',
+    chip: 'bg-signal-growth/15 text-signal-growth',
+    pct: 'text-signal-growth',
+  },
+  established: {
+    label: 'Established',
+    bar: 'bg-signal-wage',
+    chip: 'bg-signal-wage/15 text-signal-wage',
+    pct: 'text-signal-wage',
+  },
+  expert: {
+    label: 'Expert',
+    bar: 'bg-sun-500',
+    chip: 'bg-sun-500/15 text-sun-600',
+    pct: 'text-sun-600',
+  },
+};
 
-export function SignalBar({ label, signal, tone }: Props) {
-  const pct = clamp(signal.score, 0, 100);
-  const t = TONE[tone];
+export function SignalBar({ entry }: Props) {
+  const pct = clamp(entry.confidence_score * 100, 0, 100);
+  const tier = TIER[entry.confidence_tier];
 
   return (
     <div>
-      <div className="flex items-baseline justify-between">
-        <h4 className="text-sm font-semibold text-clay-800">{label}</h4>
-        <div className="flex items-baseline gap-2">
-          {signal.display_value && (
-            <span className="text-xs font-medium text-clay-600">{signal.display_value}</span>
+      <div className="flex items-baseline justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h4 className="truncate text-sm font-semibold text-clay-900">{entry.label}</h4>
+            <span className={`pill ${tier.chip}`}>{tier.label}</span>
+          </div>
+          {entry.taxonomy_code && (
+            <p className="font-mono text-[10px] text-clay-500">{entry.taxonomy_code}</p>
           )}
-          <span className={`font-mono text-sm font-semibold ${t.text}`}>{pct}/100</span>
         </div>
+        <span className={`shrink-0 font-mono text-sm font-semibold ${tier.pct}`}>
+          {Math.round(pct)}%
+        </span>
       </div>
       <div
         role="progressbar"
-        aria-valuenow={pct}
+        aria-valuenow={Math.round(pct)}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label={label}
+        aria-label={`${entry.label} confidence`}
         className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-clay-100"
       >
         <div
-          className={`h-full ${t.fill} transition-[width] duration-700 ease-out`}
+          className={`h-full ${tier.bar} transition-[width] duration-700 ease-out`}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <p className="mt-1.5 text-xs leading-snug text-clay-600">{signal.rationale}</p>
     </div>
   );
 }

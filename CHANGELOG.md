@@ -56,6 +56,54 @@ All notable changes to UNMAPPED Protocol are tracked here.
 The project follows [Semantic Versioning](https://semver.org) per the protocol's
 Section 12.1, and the versions in this file map 1:1 to git tags on `main`.
 
+## [0.3.0-sse-alpha.2] — 2026-04-26
+
+### Added
+
+- `OwnershipStatement` component — Section 4.2 ownership promise rendered
+  visibly inside every profile card (portable, revocable, holder-controlled).
+- `ConstraintTierSwitcher` — judge-friendly Smartphone / SMS / USSD tab that
+  collapses the same profile across the three delivery tiers in one click.
+- Recursive USSD tree navigator — `UssdSimulator` now walks
+  `human_layer.ussd_tree` node-by-node with a back stack and per-option
+  numeric buttons (parser-driven, no hard-coded menu).
+- ISCO/ESCO taxonomy chips and confidence-tier-aware skill bars
+  (`emerging` / `developing` / `established` / `expert`).
+- `<details>` evidence-chain reveal that exposes the full VSS list with
+  evidence types and weights.
+- Vitest + jsdom + React Testing Library test harness.
+  - 8 test files / 26 cases covering input, locale swap, profile rendering,
+    SMS and USSD primitives, constraint-tier swap, api fallback, and an
+    end-to-end App-level flow.
+- `frontend/src/test/{setup.ts,fixtures.ts}` shared test plumbing.
+
+### Changed
+
+- **Breaking (internal):** API client reconciled with backend
+  `module/m1-sse` (Claude 1 LOG-0001). Endpoint moved from `/parse` to
+  `/api/v1/parse`; request shape `{raw_input, country}` →
+  `{text, country_code, context_tag}`; response shape flattened `profile`
+  → nested `{user, skills, vss_list, human_layer, meta}`. Full canonical
+  types live in `frontend/src/lib/types.ts`.
+- `docs/api-contract.md` rewritten as a thin reconciliation document that
+  points at backend Pydantic models and JSON Schemas as the source of truth.
+- `mock.ts` rebuilt with the canonical Amara test vector from the backend
+  parser tests + an Armenia mock for AM (until the backend ships an AM
+  country_profile).
+- Locale switcher now annotates `backendSupported` per locale; AM goes
+  through the offline fallback transparently and the SPA shows an "Offline
+  fallback" badge.
+
+### Backward compatibility
+
+- The SPA-as-product is unreleased to end users — this is the first
+  integration with a real backend, so no production consumers exist.
+- The contract change is breaking against the inferred alpha.1 contract
+  but has no consumers, since no backend implemented that contract.
+  Claude 1's canonical contract is the new baseline.
+
+---
+
 ## [0.3.0-sse-alpha.1] — 2026-04-26
 
 ### Added

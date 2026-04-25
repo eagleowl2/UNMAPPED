@@ -1,14 +1,13 @@
 import { QRCodeSVG } from 'qrcode.react';
 
 interface Props {
-  /** Opaque profile id; in production this becomes a deep-link / verifiable claim. */
-  profileId: string;
+  hlId: string;
   size?: number;
 }
 
-export function QrSimulation({ profileId, size = 96 }: Props) {
+export function QrSimulation({ hlId, size = 92 }: Props) {
   // Demo URL — replace with verifiable-credential resolver in v0.4.
-  const url = `https://unmapped.demo/p/${profileId}`;
+  const url = `https://unmapped.demo/hl/${hlId}`;
 
   return (
     <div className="flex flex-col items-center gap-1.5">
@@ -19,10 +18,10 @@ export function QrSimulation({ profileId, size = 96 }: Props) {
           bgColor="#ffffff"
           fgColor="#241c13"
           level="M"
-          aria-label={`QR code for profile ${profileId}`}
+          aria-label={`QR code for human-layer ${hlId}`}
         />
       </div>
-      <p className="font-mono text-[10px] text-clay-600">{profileId}</p>
+      <p className="font-mono text-[10px] text-clay-600">{hlId.slice(0, 14)}…</p>
     </div>
   );
 }

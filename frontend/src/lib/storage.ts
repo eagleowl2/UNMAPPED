@@ -1,8 +1,8 @@
 import type { ParseResponse } from './types';
 
-const KEY_LAST_RESULT = 'unmapped:last_result_v1';
-const KEY_LAST_INPUT = 'unmapped:last_input_v1';
-const KEY_LOCALE = 'unmapped:locale_v1';
+const KEY_LAST_RESULT = 'unmapped:last_result_v2';
+const KEY_LAST_INPUT = 'unmapped:last_input_v2';
+const KEY_LOCALE = 'unmapped:locale_v2';
 
 export const storage = {
   saveResult(result: ParseResponse): void {

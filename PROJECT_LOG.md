@@ -303,3 +303,86 @@ a follow-up entry.
   `frontend/src/lib/mock.ts` as your golden tests so the SPA renders
   identically in live and fallback modes. CORS allow-list:
   `http://localhost:5173` for dev.
+
+---
+
+## 2026-04-26 — v0.3.0-sse-alpha.2
+
+- **Module:** M1 — Skills Signal Engine (Frontend / Human + Constraint Layer)
+- **Author:** Claude 2 (frontend) — reconciling with Claude 1's LOG-0001 on
+  branch `module/m1-sse`.
+- **Branch:** `module/m1-sse-ui` (continuation; v0.3.0-sse-alpha.1 base).
+- **Change type:** `feat` + `breaking` for the internal API client (the
+  external SPA UX is additive — this is the first integration with a real
+  backend, so there is no production consumer to break).
+- **Primitives affected:**
+  - **Interface contract** — replaced the inferred alpha.1 contract with
+    Claude 1's canonical shape. Endpoint moved from `/parse` to
+    `/api/v1/parse`. Request fields: `raw_input → text`, `country → country_code`,
+    added `context_tag`. Response fields: flat `profile` → nested
+    `{ user, skills, vss_list, human_layer, meta }`.
+  - **Human Layer** — `ProfileCard` rebuilt against `human_layer.profile_card`
+    (display_name, headline, location, languages, skills_summary,
+    bio_snippet, zero_credential_badge, top_skill); skills bars now read
+    `confidence_score` + `confidence_tier ∈ {emerging, developing, established, expert}`
+    with tier-coloured rendering; ISCO/ESCO codes surfaced as inline chips;
+    `<details>` evidence-chain reveal renders the full VSS list when judges
+    want depth.
+  - **Ownership Layer** — new `OwnershipStatement` component placed inside
+    the profile card per Section 4.2: portable, revocable, holder-controlled.
+  - **Constraint Layer** — new `ConstraintTierSwitcher` (smartphone / SMS /
+    USSD) lets a judge collapse the same profile across the three delivery
+    tiers in one click. `UssdSimulator` rewritten as a recursive tree
+    navigator that walks `human_layer.ussd_tree` node-by-node with a
+    Back stack. `SmsPreview` reads the structured `sms_summary` and shows
+    char_count + segment math.
+  - **Localization Layer** — Armenia keeps its locale UX; backend coverage
+    is Ghana-only for now, so AM transparently uses the bundled mock and
+    surfaces an "Offline fallback" badge instead of a broken card.
+  - **Test infrastructure (NEW)** — Vitest + jsdom + RTL. Suites cover
+    InputPanel, LocaleSwitcher, ProfileCard, SmsPreview, UssdSimulator,
+    ConstraintTierSwitcher, the api fallback wrapper, and an App-level
+    integration test that walks input → submit → tier-swap.
+- **Files added/changed:**
+  - Modified: `frontend/src/lib/{types.ts, api.ts, mock.ts, locales.ts, storage.ts}`,
+    `frontend/src/components/{ProfileCard, SignalBar, NetworkEntryMap, QrSimulation, SmsPreview, UssdSimulator, InputPanel}.tsx`,
+    `frontend/src/App.tsx`, `frontend/{package.json, vite.config.ts, tsconfig.json}`,
+    `docs/api-contract.md`, `CHANGELOG.md`.
+  - Added: `frontend/src/components/{OwnershipStatement, ConstraintTierSwitcher}.tsx`,
+    `frontend/src/test/{setup.ts, fixtures.ts}`,
+    `frontend/src/{components/__tests__/*, lib/__tests__/api.test.ts, __tests__/App.test.tsx}`.
+- **Backward compatibility:** N/A for the SPA-as-product (first real
+  release). The contract change is breaking against the inferred alpha.1
+  contract — that contract had no consumers because no backend implemented
+  it; the canonical contract from Claude 1 is now the baseline.
+- **Test plan:**
+  - `npm install && npm run lint` — strict TS, no unused locals/params.
+  - `npm test` — 7 suites, 23 cases (InputPanel × 6, LocaleSwitcher × 2,
+    ProfileCard × 2, SmsPreview × 3, UssdSimulator × 3, ConstraintTier × 2,
+    api × 5, App-integration × 3 — note: not all run yet, dependencies
+    need installing first).
+  - Manual: load SPA → click "Try the Amara story" → submit → verify
+    profile card renders headline + zero-credential badge + both skills
+    with correct tier chips (`Established` / `Developing`) + ISCO codes
+    + evidence chain `<details>`.
+  - Manual: click `SMS` tier → verify Tier-2 framing renders the
+    `sms_summary.text` with the segment counter; click `USSD` tier →
+    verify dial / option-tap / `0. Back` walk through the tree.
+  - Manual: switch to Armenia → verify "Offline fallback" badge,
+    Armenian/Russian USSD strings render.
+  - Live integration: with Claude 1's backend up at `http://localhost:8000`
+    + `VITE_API_URL=http://localhost:8000` set, a Ghana submission should
+    show a `Live parser` badge with `parser_version` from `meta`.
+- **Rollback path:** `git revert <alpha.2 commit>` — no migrations, no
+  shared state, the alpha.1 SPA is a clean previous state. If the
+  contract reconciliation itself is the issue, `git checkout
+  v0.3.0-sse-alpha.1` (tag will be created at PR-merge time).
+- **Open issues / next steps:**
+  - Run `npm install` in CI and add a GitHub Action to gate `npm run lint`
+    + `npm test` on every PR.
+  - Add an Armenia `country_profile` to the backend (Claude 1 task) to
+    replace the mock-only AM path with live data.
+  - Replace the offline SVG `NetworkEntryMap` with MapLibre + a small set
+    of country bounding boxes in v0.4.
+  - Real verifiable-credential resolver behind the QR (currently a demo
+    `unmapped.demo/hl/...` URL).

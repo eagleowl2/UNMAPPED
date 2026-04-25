@@ -25,10 +25,7 @@ export function InputPanel({ locale, value, onChange, onSubmit, loading }: Props
   }
 
   return (
-    <section
-      aria-labelledby="input-heading"
-      className="card p-5 sm:p-7"
-    >
+    <section aria-labelledby="input-heading" className="card p-5 sm:p-7">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 id="input-heading" className="text-base font-semibold text-clay-800">
           Tell us about yourself
