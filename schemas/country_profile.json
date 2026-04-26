@@ -167,6 +167,34 @@
         }
       }
     },
+    "opportunity_catalog": {
+      "type": "array",
+      "description": "v0.4.0 — BONA-style reachable opportunities for this country/context. Scored at runtime against the user's skill profile.",
+      "items": {
+        "type": "object",
+        "required": ["title", "employer_type", "channel", "lat", "lng", "label", "wage_range", "isco_code", "formalization_path"],
+        "additionalProperties": false,
+        "properties": {
+          "title": { "type": "string" },
+          "employer_type": {
+            "type": "string",
+            "enum": ["sme", "cooperative", "platform", "ngo", "government"]
+          },
+          "channel": { "type": "string" },
+          "lat": { "type": "number", "minimum": -90, "maximum": 90 },
+          "lng": { "type": "number", "minimum": -180, "maximum": 180 },
+          "label": { "type": "string" },
+          "wage_range": { "type": "string" },
+          "isco_code": { "type": "string", "pattern": "^[0-9]{3,4}$" },
+          "formalization_path": { "type": "string" },
+          "accepts_zero_credential": { "type": "boolean", "default": true },
+          "required_languages": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
     "confidence_priors": {
       "type": "object",
       "description": "Bayesian priors for this context (Section 5.3)",
