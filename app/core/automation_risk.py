@@ -11,6 +11,7 @@ Inputs come pre-extracted from EvidenceParser.parse_for_profile().
 """
 from __future__ import annotations
 
+import logging
 from typing import Any, Optional
 
 from app.core.data_sources import (
@@ -18,6 +19,16 @@ from app.core.data_sources import (
     load_lmic_adjustment,
     load_wittgenstein,
 )
+
+logger = logging.getLogger(__name__)
+_warned_missing: set[str] = set()
+
+
+def _warn_once(key: str, msg: str) -> None:
+    """Log a fixture-missing warning at most once per process."""
+    if key not in _warned_missing:
+        _warned_missing.add(key)
+        logger.warning(msg)
 
 
 _TIER_THRESHOLDS = {
@@ -135,8 +146,25 @@ def compute_automation_risk(
     skill_name = top.get("name", "this occupation")
 
     fo = load_frey_osborne()
-    if not fo:
+    if not fo or not fo.get("probabilities"):
+        _warn_once(
+            "fo",
+            "compute_automation_risk: data/frey_osborne_isco.json missing or "
+            "empty — Module 2 disabled. Profile will omit automation_risk.",
+        )
         return None
+    if not load_lmic_adjustment().get("country_factors"):
+        _warn_once(
+            "lmic",
+            "compute_automation_risk: data/ilo_lmic_adjustment.json missing — "
+            "falling back to default LMIC factor 0.6.",
+        )
+    if not load_wittgenstein().get("projections"):
+        _warn_once(
+            "wit",
+            "compute_automation_risk: data/wittgenstein_2035.json missing — "
+            "rationale will omit the 2035 trajectory narrative.",
+        )
 
     p_raw, p_adj, soc = _adjusted_probability(country, isco)
     risk_tier = _tier_for(p_adj)

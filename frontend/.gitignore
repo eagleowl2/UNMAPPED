@@ -8,7 +8,10 @@ dist-ssr
 .DS_Store
 .vscode
 
-# tsc -b composite-build artifacts
+# tsc -b composite-build artifacts (now redirected via outDir, but kept for safety)
 *.tsbuildinfo
 vite.config.d.ts
 vite.config.js
+vite.proxy.d.ts
+vite.proxy.js
+.tsconfig-build/

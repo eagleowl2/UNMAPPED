@@ -2,23 +2,40 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
+import { resolveProxyTarget } from './vite.proxy';
 
 /**
  * UNMAPPED frontend — Vite config.
  *
  * Proxy strategy:
- *   The SPA always fetches relative `/api/v1/*` URLs from the browser. Vite's
- *   dev-server proxies those to whatever absolute target lives in
- *   `VITE_API_URL`. In docker-compose that's the docker-internal hostname
- *   `http://backend:8000`; for standalone dev it's `http://localhost:8000`.
+ *   The SPA always fetches relative `/parse`, `/api/*`, `/health` URLs from
+ *   the browser. Vite's dev-server proxies those to the resolved backend
+ *   target (see vite.proxy.ts for the resolution rules).
  *
- *   This keeps the SPA same-origin (no CORS), works whether the backend is
- *   accessed by service name or host port, and never asks the browser to
- *   resolve a docker-only DNS name.
+ *   Default is `http://localhost:8000` — bare-metal `uvicorn` parking spot.
+ *   docker-compose overrides via `VITE_API_URL=http://backend:8000`.
+ *   `VITE_DEMO_MODE=true` disables the proxy entirely so the SPA uses the
+ *   bundled mock for offline pitches.
+ *
+ *   The resolved target is logged on every Vite startup so you can see in
+ *   the terminal exactly which backend is being targeted — silent
+ *   misconfigurations are how this got mis-diagnosed once already.
  */
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const proxyTarget = env.VITE_API_URL?.replace(/\/+$/, '') || '';
+  const proxyTarget = resolveProxyTarget(env);
+
+  if (proxyTarget) {
+    // eslint-disable-next-line no-console
+    console.log(
+      `[unmapped/vite] mode=${mode}  proxy /parse, /api, /health → ${proxyTarget}`,
+    );
+  } else {
+    // eslint-disable-next-line no-console
+    console.log(
+      `[unmapped/vite] mode=${mode}  VITE_DEMO_MODE=true — proxy disabled (SPA will use bundled mock)`,
+    );
+  }
 
   return {
     plugins: [react()],
@@ -31,8 +48,6 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       host: true,
       strictPort: true,
-      // Forward both the canonical /parse route (alpha.4+) and the legacy
-      // /api/v1 alias to the backend service.
       proxy: proxyTarget
         ? {
             '/parse': { target: proxyTarget, changeOrigin: true, secure: false },

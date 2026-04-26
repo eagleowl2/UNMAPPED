@@ -99,14 +99,14 @@ the frontend contract — the SPA falls back to its bundled mock automatically.
 )
 async def parse_public(body: ParseRequest) -> JSONResponse:
     t0 = time.perf_counter()
-    # Log inputs at DEBUG so we can correlate failures with the exact text
-    # that triggered them. raw_input is truncated to 200 chars to avoid
-    # blowing out the log on large payloads.
+    # Always log non-PII metadata at INFO so traffic is observable.
+    logger.info("[/parse] country=%s len=%d", body.country, len(body.raw_input))
+    # raw_input is PII (Protocol §5.4). Only log it when verbose-errors is
+    # enabled (default in dev, off in prod), and only at DEBUG level so it
+    # doesn't end up in shipped INFO log streams. Truncated to 200 chars.
     snippet = (body.raw_input[:200] + "…") if len(body.raw_input) > 200 else body.raw_input
-    logger.info(
-        "[/parse] country=%s len=%d input=%r",
-        body.country, len(body.raw_input), snippet,
-    )
+    if _VERBOSE_ERRORS:
+        logger.debug("[/parse] input=%r", snippet)
     try:
         result = _do_parse(body, t0)
         return JSONResponse(content=result)
@@ -117,20 +117,28 @@ async def parse_public(body: ParseRequest) -> JSONResponse:
             content={"ok": False, "error": str(exc), "code": "UNSUPPORTED_LOCALE"},
         )
     except ValueError as exc:
-        logger.warning(
-            "[/parse] ValueError for country=%s input=%r: %s",
-            body.country, snippet, exc,
-        )
+        # input snippet only included in dev (verbose mode); same PII rule.
+        if _VERBOSE_ERRORS:
+            logger.warning(
+                "[/parse] ValueError for country=%s input=%r: %s",
+                body.country, snippet, exc,
+            )
+        else:
+            logger.warning("[/parse] ValueError for country=%s: %s", body.country, exc)
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content={"ok": False, "error": str(exc), "code": "PARSER_FAILURE"},
         )
     except Exception as exc:
-        # Always log the full traceback to backend stderr.
-        logger.exception(
-            "[/parse] UNEXPECTED parser error for country=%s input=%r",
-            body.country, snippet,
-        )
+        # Always log the full traceback to backend stderr. Input snippet
+        # is gated by verbose mode (PII rule).
+        if _VERBOSE_ERRORS:
+            logger.exception(
+                "[/parse] UNEXPECTED parser error for country=%s input=%r",
+                body.country, snippet,
+            )
+        else:
+            logger.exception("[/parse] UNEXPECTED parser error for country=%s", body.country)
         # In dev (default), surface the actual exception in the SPA so the
         # user can copy-paste it back. Set UNMAPPED_VERBOSE_ERRORS=0 in prod.
         if _VERBOSE_ERRORS:

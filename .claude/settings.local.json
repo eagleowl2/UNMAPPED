@@ -21,7 +21,8 @@
       "Bash(git restore *)",
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
-      "Bash(python -m pytest tests/test_api.py tests/test_automation_risk.py tests/test_parser.py -q --no-header -p no:cacheprovider)"
+      "Bash(python -m pytest tests/test_api.py tests/test_automation_risk.py tests/test_parser.py -q --no-header -p no:cacheprovider)",
+      "Bash(python -m pytest tests/test_api.py tests/test_automation_risk.py -q --no-header -p no:cacheprovider)"
     ]
   }
 }
