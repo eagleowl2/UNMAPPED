@@ -87,6 +87,34 @@ class NeetContext(BaseModel):
     narrative: str
     source: str
     year: int
+
+
+class BonaSubScore(BaseModel):
+    """One of the three BONA sub-audits."""
+    score: float = Field(ge=0.0, le=1.0)
+    tier: Literal["low", "medium", "high"]
+
+
+class BonaGhostScore(BonaSubScore):
+    """Ghost-listing audit also exposes the number of flagged listings."""
+    ghost_count: int = Field(ge=0)
+
+
+class BonaReport(BaseModel):
+    """UNMAPPED Protocol v0.2 §6.7 — Bidirectional Opaque Network Auditor.
+
+    Three deterministic sub-scores plus a flag list, all derived from
+    non-PII signals (channels, languages, opportunity metadata). Optional
+    on the wire so older SPA versions render unchanged.
+    """
+    overall_score: float = Field(ge=0.0, le=1.0)
+    overall_tier: Literal["low", "medium", "high"]
+    network_capture: BonaSubScore
+    ghost_listings: BonaGhostScore
+    programme_leakage: BonaSubScore
+    flags: list[str] = Field(default_factory=list, max_length=8)
+    rationale: str
+    sources: list[str] = Field(default_factory=list)
 class OpportunityEntry(BaseModel):
     title: str
     employer_type: str
@@ -125,6 +153,8 @@ class ProfileCard(BaseModel):
     # existing SPA versions render unchanged.
     automation_risk: Optional[AutomationRisk] = None
     neet_context: Optional[NeetContext] = None
+    # v0.4 — BONA forensic audit (§6.7). Optional for backward compat.
+    bona: Optional[BonaReport] = None
 
 
 class ParseResponse(BaseModel):

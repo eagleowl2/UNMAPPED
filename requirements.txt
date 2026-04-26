@@ -16,9 +16,16 @@ jsonschema>=4.22.0
 spacy>=3.7.4
 # spaCy multilingual model (install separately):
 #   python -m spacy download xx_ent_wiki_sm
-# HuggingFace (optional — for multilingual transformers)
-transformers>=4.40.0
-torch>=2.2.0  # CPU-only; override with torch+cpu wheel for Docker
+#
+# v0.3.4: the multilingual sentence-transformer (E5-small) stage was
+# replaced by app/core/armenian_llm.py — a deterministic abbreviation
+# expander + OpenRouter LLM fallback (Anthropic Haiku 4.5 via OpenRouter
+# by default, configurable via UNMAPPED_LLM_BACKEND / UNMAPPED_LLM_MODEL).
+# All HTTP traffic goes through `httpx` — no extra SDK dependency. The
+# transformers/torch deps are no longer used; uncomment only if you need
+# the legacy MultilingualEmbedder path.
+# transformers>=4.40.0
+# torch>=2.2.0
 
 # Taxonomy graph
 networkx>=3.3
@@ -31,6 +38,10 @@ scipy>=1.13.0  # Beta distribution credible intervals
 
 # Templating
 jinja2>=3.1.4
+
+# Persistence (SQLite via async SQLAlchemy — zero infra, pure Python)
+sqlalchemy>=2.0.30
+aiosqlite>=0.19.0
 
 # Utilities
 python-multipart>=0.0.9

@@ -12,10 +12,11 @@ import time
 import traceback
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 
 from app.core.parser import EvidenceParser
+from app.db.repository import upsert_profile
 from app.models.schemas import (
     ParseError,
     ParseRequest,
@@ -67,7 +68,7 @@ def _do_parse(req: ParseRequest, t0: float) -> dict[str, Any]:
         "profile": profile_dict,
         "latency_ms": latency_ms,
         "country": req.country.upper(),
-        "parser_version": "sse-0.3.2",
+        "parser_version": "sse-0.4",
     }
 
 
@@ -97,7 +98,7 @@ the frontend contract — the SPA falls back to its bundled mock automatically.
         422: {"model": ParseError},
     },
 )
-async def parse_public(body: ParseRequest) -> JSONResponse:
+async def parse_public(body: ParseRequest, background: BackgroundTasks) -> JSONResponse:
     t0 = time.perf_counter()
     # Always log non-PII metadata at INFO so traffic is observable.
     logger.info("[/parse] country=%s len=%d", body.country, len(body.raw_input))
@@ -109,6 +110,9 @@ async def parse_public(body: ParseRequest) -> JSONResponse:
         logger.debug("[/parse] input=%r", snippet)
     try:
         result = _do_parse(body, t0)
+        # Persist the derived ProfileCard after the response goes out.
+        # raw_input is intentionally not passed — PII never reaches the DB.
+        background.add_task(upsert_profile, result["profile"], body.country.upper())
         return JSONResponse(content=result)
     except FileNotFoundError as exc:
         logger.warning("Country profile not found: %s", exc)
@@ -167,8 +171,8 @@ async def parse_public(body: ParseRequest) -> JSONResponse:
     summary="[v1] Parse chaotic input → ProfileCard (legacy path)",
     include_in_schema=True,
 )
-async def parse_v1(body: ParseRequest) -> JSONResponse:
-    return await parse_public(body)
+async def parse_v1(body: ParseRequest, background: BackgroundTasks) -> JSONResponse:
+    return await parse_public(body, background)
 
 
 # ---------------------------------------------------------------------------
@@ -184,5 +188,5 @@ async def parse_v1(body: ParseRequest) -> JSONResponse:
         "Identical to /parse — exists for SPA components that call it separately."
     ),
 )
-async def generate_profile_card(body: ParseRequest) -> JSONResponse:
-    return await parse_public(body)
+async def generate_profile_card(body: ParseRequest, background: BackgroundTasks) -> JSONResponse:
+    return await parse_public(body, background)

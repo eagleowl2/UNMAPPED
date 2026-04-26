@@ -84,6 +84,58 @@ export interface NeetContext {
   year: number;
 }
 
+/**
+ * One concrete opportunity returned by Module 3's BONA-style matching.
+ * Mirrors `OpportunityEntry` in app/models/schemas.py.
+ */
+export interface OpportunityEntry {
+  title: string;
+  employer_type: string;
+  channel: string;
+  lat: number;
+  lng: number;
+  label: string;
+  wage_range: string;
+  isco_code: string;
+  formalization_path: string;
+  /** 0..1 — match score from compute_job_match. */
+  match_score: number;
+}
+
+export interface JobMatchSignal {
+  score: number;
+  rationale: string;
+  opportunity_count: number;
+  matched_opportunities: OpportunityEntry[];
+}
+
+export type BonaTier = 'low' | 'medium' | 'high';
+
+export interface BonaSubScore {
+  score: number;
+  tier: BonaTier;
+}
+
+export interface BonaGhostScore extends BonaSubScore {
+  ghost_count: number;
+}
+
+/**
+ * BONA — Bidirectional Opaque Network Auditor (UNMAPPED §6.7). Three
+ * heuristic sub-scores plus a flag list, all derived from non-PII signals
+ * the youth user can read alongside their card. Optional on the wire.
+ */
+export interface BonaReport {
+  overall_score: number;
+  overall_tier: BonaTier;
+  network_capture: BonaSubScore;
+  ghost_listings: BonaGhostScore;
+  programme_leakage: BonaSubScore;
+  flags: string[];
+  rationale: string;
+  sources: string[];
+}
+
 export interface ProfileCard {
   profile_id: string;
   display_name: string;
@@ -104,6 +156,8 @@ export interface ProfileCard {
   automation_risk?: AutomationRisk;
   /** Module 3 (partial) — NEET rate context for the user's country. */
   neet_context?: NeetContext;
+  /** §6.7 — BONA forensic audit. Present from backend v0.4 onwards. */
+  bona?: BonaReport;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

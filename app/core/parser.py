@@ -26,13 +26,13 @@ from app.core.country_profile import (
     is_zero_credential_context,
     load_country_profile,
 )
+from app.core.armenian_llm import (
+    has_armenian_script,
+    normalise_for_skills,
+)
 from app.core.multilingual import (
     AliasHit,
     AliasMatcher,
-    MultilingualEmbedder,
-    SemanticHit,
-    candidate_phrases,
-    semantic_match,
 )
 from app.core.taxonomy import TaxonomyGraph
 
@@ -206,7 +206,7 @@ class EvidenceParser:
         country_code: str = "GH",
         context_tag: str = "urban_informal",
         spacy_model: str = "xx_ent_wiki_sm",
-        enable_embedder: bool = True,
+        enable_armenian_llm: bool = True,
     ) -> None:
         self.country_code = country_code.upper()
         self.context_tag = context_tag
@@ -218,7 +218,7 @@ class EvidenceParser:
         self._nlp = self._load_spacy(spacy_model)
         self._alias_registry = get_skill_alias_registry(self.profile)
         self._alias_matcher = AliasMatcher(self._alias_registry)
-        self._enable_embedder = enable_embedder
+        self._enable_armenian_llm = enable_armenian_llm
 
     # ------------------------------------------------------------------
     # Public API
@@ -256,6 +256,7 @@ class EvidenceParser:
             detect_age,
         )
         from app.core.automation_risk import compute_automation_risk
+        from app.core.bona import compute_bona
 
         t_hash = hashlib.sha256(raw_text.encode()).hexdigest()
         now = datetime.now(timezone.utc).isoformat()
@@ -364,6 +365,17 @@ class EvidenceParser:
         # Module 3 (partial) — NEET context (Signal 4)
         neet_context = get_neet_context(self.country_code)
 
+        # BONA — forensic audit on the matched opportunities + entry channel.
+        # Runs after job_match so it sees the same opportunities the user does.
+        bona_report = compute_bona(
+            country_code=self.country_code,
+            country_profile=self.profile,
+            profile_languages=user.languages,
+            zero_credential=user.zero_credential,
+            matched_opportunities=(job_match_signal or {}).get("matched_opportunities", []),
+            network_entry=net_entry,
+        )
+
         # Strip pass-through keys before returning
         for s in skill_items:
             s.pop("category", None)
@@ -388,6 +400,8 @@ class EvidenceParser:
             result["automation_risk"] = automation_risk
         if neet_context is not None:
             result["neet_context"] = neet_context
+        if bona_report is not None:
+            result["bona"] = bona_report
         return result
 
     # ------------------------------------------------------------------
@@ -460,19 +474,94 @@ class EvidenceParser:
     def _extract_skills(self, text: str) -> list[ExtractedSkill]:
         """Multi-stage extraction:
 
+        0. Armenian normaliser (deterministic abbreviation expander +
+           optional Anthropic Haiku 4.5 fallback) — replaces the previous
+           multilingual-embedder stage for Armenian inputs. No-op for any
+           text without Armenian script.
         1. Locale alias_registry (Twi / Ga / Armenian / Russian / English) —
            highest precision, primary path for low-resource languages.
         2. English + Armenian regex patterns — broad coverage of common
            informal-economy verbs/nouns.
-        3. Multilingual embedder (E5-small / BGE-M3) — semantic
-           paraphrase fallback against canonical skill labels.
+        3. Armenian LLM second pass — only when stages 1+2 returned <2
+           skills on Armenian input AND `ANTHROPIC_API_KEY` is set; the
+           returned canonical English phrases are appended to the text and
+           stages 1+2 re-run on the augmented payload.
         4. Noun-phrase taxonomy crosswalk — final structural fallback.
 
         Earlier stages "lock in" canonical_label → skill mapping so later
         stages cannot duplicate the same skill under a different name.
         """
-        found: dict[str, ExtractedSkill] = {}
         experience_signals_text, extra_text = self._extract_experience(text)
+
+        # Stage 0 — deterministic Armenian abbreviation expansion.
+        # `normalise_for_skills` is idempotent for non-Armenian text;
+        # passing skills_already_found=999 forces the cheap Tier-A path
+        # (no LLM call yet — that decision happens after Stages 1-2).
+        text_for_pipeline, _norm_source = normalise_for_skills(
+            text, skills_already_found=999,
+        )
+
+        found = self._run_alias_and_regex(
+            text_for_pipeline, experience_signals_text, extra_text,
+        )
+
+        # Stage 3 — LLM fallback (only when truly underdetermined Armenian).
+        if (
+            self._enable_armenian_llm
+            and len(found) < 2
+            and has_armenian_script(text)
+        ):
+            augmented_text, llm_source = normalise_for_skills(
+                text,
+                skills_already_found=len(found),
+                skill_threshold=2,
+            )
+            # Re-run alias + regex over the LLM-augmented text whenever
+            # Tier-B (any backend: openrouter / anthropic / cache) actually
+            # produced output. Pure Tier-A returns just "tier-a"; non-LLM
+            # backends append "+disabled" or "+error" with no augmentation.
+            if "+" in llm_source and not llm_source.endswith(
+                ("+disabled", "+error")
+            ):
+                # Existing `found` dict suppresses duplicates.
+                found = self._run_alias_and_regex(
+                    augmented_text,
+                    experience_signals_text,
+                    extra_text,
+                    seed=found,
+                )
+
+        # Stage 4 — noun-phrase taxonomy crosswalk
+        for phrase in self._extract_noun_phrases(text_for_pipeline):
+            result = self._taxonomy.crosswalk(phrase)
+            if result and result.primary.label not in found:
+                found[result.primary.label] = ExtractedSkill(
+                    skill_id=f"skl_{uuid.uuid4()}",
+                    label=result.primary.label,
+                    category="other",
+                    source_phrases=[phrase],
+                    experience_signals=[],
+                    evidence_weight=result.primary.match_score * 0.8,
+                    extra_signals={},
+                    taxonomy_code=result.primary.code,
+                )
+
+        return list(found.values())
+
+    def _run_alias_and_regex(
+        self,
+        text: str,
+        experience_signals_text: list[str],
+        extra_text: dict[str, Any],
+        seed: Optional[dict[str, "ExtractedSkill"]] = None,
+    ) -> dict[str, "ExtractedSkill"]:
+        """Run the Stage 1 (alias_registry) + Stage 2 (regex) extractors.
+
+        Pulled out as a helper so it can be re-run on LLM-augmented text
+        without duplicating logic. `seed` lets the second pass preserve
+        already-found skills.
+        """
+        found: dict[str, ExtractedSkill] = dict(seed) if seed else {}
 
         # Stage 1 — locale alias registry
         for hit in self._alias_matcher.find_all(text):
@@ -526,64 +615,7 @@ class EvidenceParser:
                     taxonomy_code=isco_code,
                 )
 
-        # Stage 3 — multilingual embedder (semantic paraphrase)
-        if self._enable_embedder and self._alias_registry:
-            self._apply_semantic_stage(text, found, experience_signals_text, extra_text)
-
-        # Stage 4 — noun-phrase taxonomy crosswalk
-        for phrase in self._extract_noun_phrases(text):
-            result = self._taxonomy.crosswalk(phrase)
-            if result and result.primary.label not in found:
-                found[result.primary.label] = ExtractedSkill(
-                    skill_id=f"skl_{uuid.uuid4()}",
-                    label=result.primary.label,
-                    category="other",
-                    source_phrases=[phrase],
-                    experience_signals=[],
-                    evidence_weight=result.primary.match_score * 0.8,
-                    extra_signals={},
-                    taxonomy_code=result.primary.code,
-                )
-
-        return list(found.values())
-
-    def _apply_semantic_stage(
-        self,
-        text: str,
-        found: dict[str, "ExtractedSkill"],
-        experience_signals_text: list[str],
-        extra_text: dict[str, Any],
-    ) -> None:
-        """Run the multilingual embedder against candidate phrases."""
-        embedder = MultilingualEmbedder.get()
-        if not embedder.available:
-            return
-        phrases = candidate_phrases(text, max_words=4)
-        if not phrases:
-            return
-        # Cap to keep CPU inference snappy on small inputs.
-        phrases = phrases[:64]
-        hits: list[SemanticHit] = semantic_match(
-            phrases, self._alias_registry,
-        )
-        for hit in hits:
-            label = hit.canonical_label
-            if label in found:
-                continue
-            found[label] = ExtractedSkill(
-                skill_id=f"skl_{uuid.uuid4()}",
-                label=label,
-                category=hit.category,
-                source_phrases=[hit.surface_form],
-                experience_signals=list(set(experience_signals_text)),
-                evidence_weight=min(hit.base_weight, 0.75) * hit.score,
-                extra_signals={
-                    **extra_text,
-                    "semantic_score": hit.score,
-                    "semantic_phrase": hit.surface_form,
-                },
-                taxonomy_code=hit.isco_code,
-            )
+        return found
 
     @staticmethod
     def _surrounding_phrase(text: str, surface: str, window: int = 40) -> str:
@@ -701,7 +733,7 @@ class EvidenceParser:
                 "taxonomy_crosswalk": _crosswalk_to_dict(crosswalk_result),
                 "country_code": self.country_code,
                 "processing_meta": {
-                    "parser_version": "v0.3.1",
+                    "parser_version": "v0.3.3",
                     "model_id": "unmapped-sse-parser",
                     "detected_language": user.languages[0] if user.languages else "en",
                 },

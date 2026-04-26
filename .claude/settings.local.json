@@ -22,7 +22,24 @@
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
       "Bash(python -m pytest tests/test_api.py tests/test_automation_risk.py tests/test_parser.py -q --no-header -p no:cacheprovider)",
-      "Bash(python -m pytest tests/test_api.py tests/test_automation_risk.py -q --no-header -p no:cacheprovider)"
+      "Bash(python -m pytest tests/test_api.py tests/test_automation_risk.py -q --no-header -p no:cacheprovider)",
+      "Bash(python -m pytest tests/test_multilingual.py tests/test_parser.py -x --tb=short)",
+      "Bash(python -m pytest tests/test_multilingual.py tests/test_parser.py --tb=line -q)",
+      "Bash(python -m pytest tests/test_multilingual.py tests/test_parser.py --tb=short -q)",
+      "Bash(python -m pytest --tb=short -q)",
+      "Bash(python -m pytest tests/test_armenian_llm.py -v --tb=short)",
+      "Bash(python -m pytest -q)",
+      "Bash(python -c \"import anthropic; print\\('anthropic version:', anthropic.__version__\\)\")",
+      "Bash(UNMAPPED_LLM_DISABLE=1 python -m pytest -q)",
+      "Bash(python -m pytest tests/test_armenian_llm.py::TestAbbreviatedArmenianParserIntegration::test_abbreviated_translator_via_llm_path -v --tb=long)",
+      "Bash(python -m pip install \"sqlalchemy>=2.0.30\" \"aiosqlite>=0.19.0\")",
+      "Bash(python -m pytest tests/test_bona.py -x --tb=short)",
+      "Bash(python -m pytest tests/test_db.py -x --tb=short)",
+      "Bash(python -m pytest tests/ --tb=short)",
+      "Bash(npx tsc *)",
+      "Bash(npx vitest *)",
+      "Bash(python -m pytest tests/ -q)",
+      "Bash(curl -s -m 3 http://localhost:8000/health)"
     ]
   }
 }

@@ -2,6 +2,8 @@ import type { LocaleConfig } from '@/lib/locales';
 import type { ParseResponse } from '@/lib/types';
 import type { ParseSource } from '@/lib/api';
 import { AutomationRisk } from './AutomationRisk';
+import { BonaPanel } from './BonaPanel';
+import { JobMatchPanel } from './JobMatchPanel';
 import { NetworkEntryMap } from './NetworkEntryMap';
 import { OwnershipStatement } from './OwnershipStatement';
 import { QrSimulation } from './QrSimulation';
@@ -138,6 +140,12 @@ export function ProfileCard({ locale, data, source }: Props) {
       {profile.automation_risk && (
         <div className="border-t border-clay-100 px-5 py-4 sm:px-7 sm:py-5">
           <AutomationRisk risk={profile.automation_risk} />
+        </div>
+      )}
+
+      {profile.bona && (
+        <div className="border-t border-clay-100 px-5 py-4 sm:px-7 sm:py-5">
+          <BonaPanel bona={profile.bona} />
         </div>
       )}
 

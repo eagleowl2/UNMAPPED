@@ -7,6 +7,171 @@ Format per Section 12.4 of UNMAPPED Protocol v0.2 spec.
 
 ---
 
+## LOG ENTRY: 2026-04-26 (v0.4 — SQLite Persistence + BONA Forensic Layer)
+
+**Entry ID:** `LOG-0006`
+**Version:** `v0.4`
+**Branch:** `main` (working tree)
+**Author:** Claude (Senior Data & Product Analyst, working from `UNMAPPED_Master_Context.docx`)
+**Status:** COMPLETE — 226/226 backend tests passing (212 prior + 8 BONA + 6 DB).
+
+### 1. Change Type
+`feature` — Closes two outstanding gaps from §6 of the Master Context: the
+absent persistence/employer-API layer (§6 Phase 1) and the BONA forensic
+audit (§6.7), which up to now existed only as a `network_entry` stub.
+
+### 2. Primitives Affected
+
+| Primitive | Action | File |
+|---|---|---|
+| BONA module — three deterministic sub-scores + flags | ADDED | `app/core/bona.py` |
+| `BonaReport` / `BonaSubScore` / `BonaGhostScore` Pydantic models | ADDED | `app/models/schemas.py` |
+| Parser pipeline — invokes `compute_bona()` after job_match | MODIFIED | `app/core/parser.py` |
+| SQLite persistence layer (async SQLAlchemy 2.0 + aiosqlite) | ADDED | `app/db/__init__.py`, `app/db/session.py`, `app/db/models.py`, `app/db/repository.py` |
+| Employer / policymaker read API (`GET /api/v1/profiles`, `/profiles/{id}`, `/dashboard`) | ADDED | `app/api/employer.py` |
+| `parser_version` bump to `sse-0.4`; lifespan calls `init_db()`; BackgroundTasks upsert | MODIFIED | `app/main.py`, `app/api/routes.py` |
+| `BonaPanel` component + `BonaReport`/`JobMatchSignal`/`OpportunityEntry` types | ADDED | `frontend/src/components/BonaPanel.tsx`, `frontend/src/lib/types.ts` |
+| ProfileCard wires `<BonaPanel>` between AutomationRisk and NEET context | MODIFIED | `frontend/src/components/ProfileCard.tsx` |
+| Tests — BONA unit + contract; DB persistence + RBAC + dashboard aggregation | ADDED | `tests/test_bona.py`, `tests/test_db.py` |
+| `sqlalchemy>=2.0.30` + `aiosqlite>=0.19.0` | ADDED | `requirements.txt` |
+
+### 3. Summary of Changes
+
+**3.1 BONA — `app/core/bona.py`**
+Three sub-scores, all derived from non-PII signals already on the
+ProfileCard, so BONA never sees `raw_input`:
+* `network_capture` — Herfindahl-style channel concentration over
+  matched opportunities, plus an employer-type diversity bump.
+* `ghost_listings` — per-opportunity sanity audit (wage_range,
+  formalization_path, employer_type, isco_code, coordinates). Each
+  missing field bumps a per-listing ghost probability; aggregate is
+  the count-weighted mean. Flagged listings counted explicitly.
+* `programme_leakage` — language coverage + zero-credential reach +
+  informal-economy share gap.
+
+Output is the `BonaReport` Pydantic model, attached to ProfileCard as
+an optional field. Flag list is capped at 8 for SPA scannability.
+
+**3.2 SQLite persistence — `app/db/`**
+* Async SQLAlchemy 2.0 + `aiosqlite` (no external infra; `unmapped.db`
+  in the cwd by default; override via `UNMAPPED_DB_URL`).
+* `Profile` table: PK = `profile_id` (deterministic from text hash) so
+  duplicate `/parse` calls upsert one row. Flat indexed columns
+  (wage_score, growth_score, automation_risk_tier, bona_overall_tier,
+  zero_credential, skill_count) derived at insert time; `profile_json`
+  holds the full ProfileCard.
+* `ApiKey` table — bcrypt-ready upgrade path, unused in MVP.
+* `init_db()` runs in the lifespan and **never raises** — failure is
+  logged, `is_db_enabled()` flips to False, app keeps serving `/parse`
+  in stateless mode (per Master Context §8 Priority 3 step 8).
+* Write side uses FastAPI **`BackgroundTasks`**, not raw
+  `asyncio.create_task`. Reason: `create_task` inside a TestClient
+  request can be cancelled before the SQLite commit lands, producing
+  flaky persistence. BackgroundTasks runs after the response ships but
+  inside the request scope, so it's both non-blocking and reliable.
+
+**3.3 Employer / policymaker API — `app/api/employer.py`**
+Mounted under `/api/v1`:
+* `GET /api/v1/profiles?country=&limit=&offset=` — non-PII summary list
+* `GET /api/v1/profiles/{profile_id}` — full ProfileCard (no raw_input)
+* `GET /api/v1/dashboard` — aggregates only: counts by country, avg
+  wage/growth, automation-risk distribution, BONA distribution, zero-
+  credential rate. Implements the policymaker view promised in §6.3.
+
+Auth: bearer token via `UNMAPPED_ADMIN_TOKEN`. If unset, all three
+endpoints return HTTP 503 (operator must explicitly enable). Wrong
+token → 401. The bcrypt-hashed `ApiKey` table exists for the eventual
+multi-tenant path but is not wired into auth yet — single-token
+hackathon scope.
+
+**3.4 Frontend — `BonaPanel`**
+Three sub-score bars + flag list + sources line, slotted between
+`AutomationRisk` and `NeetContext` in `ProfileCard.tsx`. Reuses the
+same low/medium/high vocabulary as automation risk so the user only
+learns one scale.
+
+### 4. Compatibility / Risk
+* `bona`, `automation_risk`, `neet_context`, `job_match` are all
+  optional on the wire — older SPA versions render unchanged.
+* DB is best-effort everywhere. The /parse contract is unchanged on
+  failure; tests confirm 226/226 with and without a DB file present.
+* `raw_input` is never persisted (PII rule §5.4) — verified by
+  `tests/test_db.py::test_get_profile_returns_full_card`.
+* Frontend `tsc --noEmit` cleared all errors caused by these changes;
+  one pre-existing `TIER_LABEL` unused-var warning in
+  `JobMatchPanel.tsx` is unrelated. The pre-existing
+  `ProfileCard.test.tsx` failure (expects an outdated
+  "Mobile-money cooperative" channel string that the mock fixture
+  removed in commit `c875894`) is also unrelated and unchanged.
+
+### 5. Follow-ups
+* Wire the `ApiKey` table into the bearer dependency for per-employer
+  keys (replace `UNMAPPED_ADMIN_TOKEN` lookup with bcrypt verify).
+* Build the policymaker SPA route (Master Context §8 Priority 4) on
+  top of `GET /api/v1/dashboard`.
+* Consider adding BONA distribution to the Profile flat columns so the
+  dashboard can paginate over hundreds of profiles without scanning
+  every JSON blob (already in place — `bona_overall_tier` is indexed).
+
+---
+
+## LOG ENTRY: 2026-04-26 (v0.3.3 — Armenian NLP Re-architecture)
+
+**Entry ID:** `LOG-0005`
+**Version:** `v0.3.3`
+**Branch:** `module/m1-armenian-nlp`
+**Author:** Claude 1 (Senior Data & Product Analyst — backend NLP)
+**Status:** COMPLETE — 212/212 tests passing locally (189 prior + 23 new); previously failing abbreviated-Armenian translator test now green offline.
+
+### 1. Change Type
+`refactor` — Replaces the multilingual-embedder stage (E5-small via `transformers`/`torch`) with a two-tier Armenian normaliser. Drops a ~700 MB hard dependency that was failing to load on every dev machine, and recovers recall on heavily abbreviated Armenian inputs that embeddings could not reach.
+
+### 2. Primitives Affected
+
+| Primitive | Action | File |
+|---|---|---|
+| Armenian normaliser (Tier A: regex abbreviation expander; Tier B: Anthropic Haiku 4.5) | ADDED | `app/core/armenian_llm.py` |
+| Parser pipeline | MODIFIED — replaces `_apply_semantic_stage` with `_run_alias_and_regex` helper + Stage 0 normaliser + Stage 3 LLM second pass | `app/core/parser.py` |
+| `parser_version` | BUMPED to `v0.3.3` (internal VSS); routes-side unchanged | `app/core/parser.py` |
+| Tests for Armenian normaliser | ADDED — 23 cases covering script detection, abbreviation expansion, LLM graceful-degradation contract, and parser integration | `tests/test_armenian_llm.py` |
+| Requirements | torch + transformers downgraded to OPTIONAL (commented); `anthropic>=0.40.0` added | `requirements.txt` |
+
+### 3. Summary of Changes
+
+**3.1 Why E5 was failing**
+Local containers don't have `torch`, so `MultilingualEmbedder.available` was permanently `False` and the parser silently fell back to alias_registry + regex. Even when E5 *did* load, it had near-zero recall on CV-style abbreviated Armenian (`թ.-ն. ռ. ու հ.` = "translator from Russian to Armenian"; `ծ. ե.` = "I am a programmer"). Single-letter Unicode tokens carry no usable embedding signal.
+
+**3.2 Tier A — deterministic abbreviation expander (offline-first)**
+A short, context-anchored regex catalogue in `armenian_llm.py` expands the closed set of abbreviations seen in the demo corpus into canonical Armenian roots that the existing `_SKILL_PATTERNS` / `_ARMENIAN_SKILL_PATTERNS` already match (`թ.-ն. ռ.` → `թարգմանիչ`; `ծ. ե.` → `ծրագրավորող`; `կ. և ձ.` → `դերձակ կարուհի`; `վ. է` → `վարորդ`; `Gym.` → `Գյումրի`). Expansions are appended to the input rather than substituted, so `source_phrases` retain the original abbreviated surface form for the evidence chain.
+
+**3.3 Tier B — Anthropic Haiku 4.5 normaliser**
+When (a) Armenian script is present, (b) Tier A + alias + regex still produced fewer than 2 skills, and (c) `ANTHROPIC_API_KEY` is set, the parser asks Haiku 4.5 (`claude-haiku-4-5-20251001`) for a comma-separated list of canonical English skill phrases, appends them to the text, and re-runs the alias + regex stages. Calls are cached by SHA-256 of the input, system prompt is `cache_control: ephemeral` for prompt-cache reuse, max-tokens capped at 200, timeout 5 s. Any failure (no key, network error, missing SDK) is swallowed — the parser falls through to its existing path without raising.
+
+**3.4 Justification — LLM over Xenova/ONNX**
+
+| Criterion | Anthropic Haiku 4.5 | Xenova / ONNX (e.g. `paraphrase-multilingual-MiniLM`, `LaBSE`) |
+|---|---|---|
+| Recall on abbreviated Armenian (`թ.-ն.`, `ծ. ե.`) | High — LLM resolves contextually | Near-zero — same root failure as E5 |
+| Local install footprint | ~5 MB (`anthropic` SDK only) | ~50–200 MB ONNX runtime + model weights |
+| Cold-start latency | None (HTTP call only) | 1–4 s model load on first request |
+| Demo robustness on bad wifi | LLM optional → falls back to Tier A offline | No fallback once model is required |
+| Per-request cost | ~$0.0008 / call, cached after first hit | Free but adds CPU cost per call |
+| Maintenance | Closed prompt + tiny code surface | Model versioning, ONNX export, tokenizer drift |
+
+The deciding factor: Xenova would replicate the original failure mode (embeddings can't read single-letter abbreviations) while keeping a heavy dependency. The LLM path solves the actual recall problem, the offline Tier-A path keeps the demo working without a key, and the implementation is one new file ~250 LoC.
+
+### 4. Compatibility / Risk
+- All 189 pre-existing tests still pass; the previously failing `TestArmenianAliasDetection::test_translator_in_armenian_script` is now green via Tier A only (no API key required).
+- `MultilingualEmbedder` and `semantic_match` remain in `app/core/multilingual.py` for backwards import compatibility, but are no longer wired into the parser.
+- API contract unchanged. Frontend mock fallback path is unaffected.
+
+### 5. Follow-ups
+- Frontend: no changes required.
+- Ops: when deploying with a key, set `ANTHROPIC_API_KEY` and (optionally) `UNMAPPED_LLM_MODEL`, `UNMAPPED_LLM_TIMEOUT_S`. Set `UNMAPPED_LLM_DISABLE=1` for fully-offline runs.
+- Future: extend Tier-A catalogue as more demo corpora surface; consider pushing the abbreviation table into `country_profile.json` once the schema is touched.
+
+---
+
 ## LOG ENTRY: 2026-04-26 (v0.3.2 — Module 2 + Real Data + PII Fix)
 
 **Entry ID:** `LOG-0004`

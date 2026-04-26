@@ -19,7 +19,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.employer import router as employer_router
 from app.api.routes import public_router, v1_router
+from app.db.session import dispose_engine, init_db
 from app.models.schemas import HealthResponse
 
 logging.basicConfig(
@@ -31,8 +33,12 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    logger.info("UNMAPPED SSE v0.3.2 starting — GH + AM profiles loaded")
+    logger.info("UNMAPPED SSE v0.4 starting — GH + AM profiles loaded")
+    # DB is best-effort. init_db() logs and returns False on failure;
+    # the app keeps serving /parse in stateless mode.
+    await init_db()
     yield
+    await dispose_engine()
     logger.info("UNMAPPED SSE shutting down")
 
 
@@ -69,6 +75,9 @@ app.include_router(public_router, tags=["Skills Signal Engine"])
 
 # Legacy / internal v1 prefix
 app.include_router(v1_router, prefix="/api/v1", tags=["v1 (legacy)"])
+
+# Employer + policymaker read API (bearer-token gated, DB-backed)
+app.include_router(employer_router, prefix="/api/v1", tags=["Employer API"])
 
 
 @app.get("/health", response_model=HealthResponse, tags=["System"])
