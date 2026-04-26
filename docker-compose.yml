@@ -1,0 +1,70 @@
+# UNMAPPED Protocol — full-stack development compose
+#
+# `docker compose up --build`  →  http://localhost:5173 (SPA) talking to
+# the FastAPI backend at the docker-internal hostname `backend:8000`,
+# with Vite dev-server proxying /api requests across the network.
+#
+# Browsers cannot resolve docker-internal hostnames, so the SPA itself
+# always fetches relative `/api/v1/*` URLs and Vite (running inside the
+# frontend container) does the cross-container hop. That keeps the demo
+# CORS-free and same-origin from the user's perspective.
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: unmapped-backend:v0.3.1
+    container_name: unmapped_backend
+    environment:
+      - LOG_LEVEL=INFO
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:8080,http://frontend:5173
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./config:/app/config:ro
+      - ./schemas:/app/schemas:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - unmapped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    image: unmapped-frontend:v0.3-sse-alpha.3
+    container_name: unmapped_frontend
+    environment:
+      # Proxy target. The Vite dev-server reads this and forwards browser
+      # /api/* calls to the backend service over the docker network.
+      - VITE_API_URL=http://backend:8000
+      - VITE_DEMO_MODE=false
+    ports:
+      - "5173:5173"
+    volumes:
+      # Bind-mount source for hot reload; node_modules stays in an
+      # anonymous volume so the host's lockfile/state never leaks in.
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://localhost:5173/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - unmapped
+
+networks:
+  unmapped:
+    driver: bridge

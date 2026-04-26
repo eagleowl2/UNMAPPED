@@ -1,0 +1,249 @@
+{
+  "country_code": "GH",
+  "country_name": "Ghana",
+  "region": "SSA",
+  "context_tag": "urban_informal",
+  "languages": {
+    "primary": "en-GH",
+    "supported": ["en-GH", "ak-GH", "gaa", "ee-GH", "ha-GH"],
+    "low_resource": ["ak-GH", "gaa", "ee-GH"]
+  },
+  "informal_economy": {
+    "enabled": true,
+    "gdp_share_pct": 68.7,
+    "sector_tags": [
+      "mobile_repair",
+      "electronics_repair",
+      "street_trade",
+      "transport_logistics",
+      "food_processing",
+      "tailoring_textiles",
+      "construction_artisan",
+      "agri_processing",
+      "digital_services",
+      "beauty_wellness"
+    ],
+    "zero_credential_default": true
+  },
+  "delivery_channels": {
+    "sms": {
+      "enabled": true,
+      "max_chars": 160,
+      "provider": "africas_talking"
+    },
+    "ussd": {
+      "enabled": true,
+      "max_depth": 3,
+      "menu_char_limit": 182
+    },
+    "web": {
+      "enabled": true,
+      "spa_url": "https://unmapped.io/gh"
+    },
+    "whatsapp": {
+      "enabled": true
+    }
+  },
+  "taxonomy_config": {
+    "primary_framework": "ISCO-08",
+    "crosswalk_targets": ["ESCO", "O*NET", "SDG"],
+    "local_skill_overrides": [
+      {
+        "local_label": "phone fixer",
+        "canonical_code": "7421",
+        "framework": "ISCO-08"
+      },
+      {
+        "local_label": "phone repairer",
+        "canonical_code": "7421",
+        "framework": "ISCO-08"
+      },
+      {
+        "local_label": "fixing phones",
+        "canonical_code": "7421",
+        "framework": "ISCO-08"
+      },
+      {
+        "local_label": "mobile technician",
+        "canonical_code": "7421",
+        "framework": "ISCO-08"
+      },
+      {
+        "local_label": "kiosk operator",
+        "canonical_code": "5221",
+        "framework": "ISCO-08"
+      },
+      {
+        "local_label": "coding",
+        "canonical_code": "2512",
+        "framework": "ISCO-08"
+      },
+      {
+        "local_label": "software development",
+        "canonical_code": "2512",
+        "framework": "ISCO-08"
+      }
+    ],
+    "skill_alias_registry": [
+      {
+        "canonical_label": "Mobile phone repair technician",
+        "aliases": [
+          "phone fixer", "phone repairer", "mobile fixer", "fixing phones",
+          "fix phones", "phone repair", "mobile repair", "mobile technician",
+          "phone tech", "screen repair", "battery swap"
+        ],
+        "isco_code": "7421",
+        "category": "technical",
+        "base_weight": 0.86,
+        "language": "en"
+      },
+      {
+        "canonical_label": "Market trader / street vendor",
+        "aliases": [
+          "trader", "market trader", "Makola trader", "street vendor",
+          "kiosk operator", "shop owner", "small trader", "petty trader",
+          "dwadini", "dwadi", "adwadini", "okwadefoɔ"
+        ],
+        "isco_code": "5221",
+        "category": "trade",
+        "base_weight": 0.82,
+        "language": "ak"
+      },
+      {
+        "canonical_label": "Porter / head-load carrier (kayayei)",
+        "aliases": [
+          "kayayo", "kayayei", "kaya yei", "head porter", "porter",
+          "load carrier", "carrying loads"
+        ],
+        "isco_code": "9621",
+        "category": "trade",
+        "base_weight": 0.88,
+        "language": "ak"
+      },
+      {
+        "canonical_label": "Trotro / okada driver (informal transport)",
+        "aliases": [
+          "trotro driver", "trotro", "okada", "okada rider", "boda",
+          "taxi driver", "driver", "mate", "trotro mate"
+        ],
+        "isco_code": "8322",
+        "category": "trade",
+        "base_weight": 0.84,
+        "language": "ak"
+      },
+      {
+        "canonical_label": "Tailor / seamstress",
+        "aliases": [
+          "tailor", "seamstress", "dressmaker", "kente weaver",
+          "ɔdwomtoɔ", "ntomafiri", "sewing"
+        ],
+        "isco_code": "7531",
+        "category": "creative",
+        "base_weight": 0.83,
+        "language": "ak"
+      },
+      {
+        "canonical_label": "Hairdresser / beautician",
+        "aliases": [
+          "hairdresser", "barber", "beautician", "braider", "salon",
+          "tinwura", "ɔtinwura"
+        ],
+        "isco_code": "5141",
+        "category": "creative",
+        "base_weight": 0.82,
+        "language": "ak"
+      },
+      {
+        "canonical_label": "Teacher / tutor",
+        "aliases": [
+          "teacher", "tutor", "private tutor", "lesson teacher",
+          "ɔkyerɛkyerɛni", "okyerɛkyerɛni", "kyerɛkyerɛni",
+          "tsɔɔlɔ", "tsoolo"
+        ],
+        "isco_code": "2320",
+        "category": "care",
+        "base_weight": 0.85,
+        "language": "ak"
+      },
+      {
+        "canonical_label": "Mobile money agent (MoMo)",
+        "aliases": [
+          "MoMo", "MoMo agent", "mobile money agent", "mobile money",
+          "MTN MoMo", "Vodafone Cash", "AirtelTigo Money", "momo vendor"
+        ],
+        "isco_code": "4211",
+        "category": "financial",
+        "base_weight": 0.88,
+        "language": "en"
+      },
+      {
+        "canonical_label": "Software developer / programmer",
+        "aliases": [
+          "coder", "coding", "programmer", "software developer",
+          "web developer", "app developer", "software engineer",
+          "frontend dev", "backend dev"
+        ],
+        "isco_code": "2512",
+        "category": "digital",
+        "base_weight": 0.85,
+        "language": "en"
+      },
+      {
+        "canonical_label": "Graphic / digital designer",
+        "aliases": [
+          "graphic designer", "designer", "digital artist", "logo designer",
+          "social media designer", "Canva designer"
+        ],
+        "isco_code": "2166",
+        "category": "creative",
+        "base_weight": 0.81,
+        "language": "en"
+      },
+      {
+        "canonical_label": "Food vendor / chop bar cook",
+        "aliases": [
+          "chop bar", "chop bar cook", "food vendor", "waakye seller",
+          "kenkey seller", "banku seller", "fufu seller", "cook"
+        ],
+        "isco_code": "5120",
+        "category": "trade",
+        "base_weight": 0.82,
+        "language": "en"
+      },
+      {
+        "canonical_label": "Construction artisan / mason",
+        "aliases": [
+          "mason", "bricklayer", "carpenter", "welder", "plumber",
+          "electrician", "tiler", "construction worker"
+        ],
+        "isco_code": "7112",
+        "category": "trade",
+        "base_weight": 0.83,
+        "language": "en"
+      },
+      {
+        "canonical_label": "Smallholder farmer / agro-processor",
+        "aliases": [
+          "farmer", "smallholder", "cocoa farmer", "agri processor",
+          "gari processor", "cassava farmer", "fish smoker"
+        ],
+        "isco_code": "9211",
+        "category": "agricultural",
+        "base_weight": 0.80,
+        "language": "en"
+      }
+    ]
+  },
+  "confidence_priors": {
+    "self_report_alpha": 2.0,
+    "self_report_beta": 3.0,
+    "peer_endorsement_weight": 0.35,
+    "transaction_evidence_weight": 0.45
+  },
+  "profile_card": {
+    "template": "gh_urban_v1",
+    "badge_color_scheme": "kente_warm",
+    "currency_symbol": "GHS",
+    "phone_prefix": "+233"
+  }
+}

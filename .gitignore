@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+*.log
+*.sqlite3
+
+# Node / Vite
+node_modules/
+**/node_modules/
+**/dist/
+dist/
+build/
+**/.vite/
+
+# IDE / tool dirs
+.idea/
+.vscode/
+.claude/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+*.env.local
+**/.env
+**/.env.local

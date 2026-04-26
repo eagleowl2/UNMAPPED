@@ -1,0 +1,23 @@
+# UNMAPPED — Vite dev-server image (hot-reload).
+# For production we'll add a multi-stage Dockerfile (npm run build → nginx).
+FROM node:20-alpine
+
+WORKDIR /app
+
+# wget is used by docker-compose's healthcheck. Everything else is
+# already in the alpine base image.
+RUN apk add --no-cache wget
+
+# Install dependencies separately so node_modules is layer-cached.
+COPY package.json package-lock.json* ./
+RUN npm install --no-audit --no-fund
+
+# Source is bind-mounted at runtime via docker-compose, so we don't COPY
+# it here — that would only get baked into the image and shadowed by the
+# mount. The empty WORKDIR is fine; compose overlays the host tree on top.
+
+EXPOSE 5173
+
+# `--host 0.0.0.0` lets the published port reach the dev server.
+# `--strictPort` makes startup fail loud if 5173 is busy.
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--strictPort"]

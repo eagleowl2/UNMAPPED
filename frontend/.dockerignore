@@ -1,0 +1,16 @@
+node_modules
+dist
+.vite
+.env
+.env.local
+.git
+.gitignore
+.gitattributes
+.idea
+.vscode
+.DS_Store
+Thumbs.db
+*.tsbuildinfo
+vite.config.d.ts
+vite.config.js
+coverage
