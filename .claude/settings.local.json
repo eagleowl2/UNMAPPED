@@ -1,7 +1,27 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git clone *)"
+      "Bash(git clone *)",
+      "Bash(python -c \"from docx import Document; d=Document\\('UNMAPPED_Master_Context.docx'\\); [print\\(p.text\\) for p in d.paragraphs]\")",
+      "Bash(pip install *)",
+      "Read(//tmp/**)",
+      "Bash(python -c ' *)",
+      "Bash(mkdir *)",
+      "Bash(python -m pytest tests/ -x -q)",
+      "Bash(python -m pytest tests/ -x -q --no-header -p no:cacheprovider)",
+      "Bash(python -c \"import spacy; print\\(spacy.util.is_package\\('xx_ent_wiki_sm'\\)\\)\")",
+      "Bash(git stash *)",
+      "Bash(python -m pytest tests/test_multilingual.py::TestArmenianAliasDetection::test_translator_in_armenian_script -x --no-header -p no:cacheprovider)",
+      "Bash(python -m pytest tests/test_api.py tests/test_bayesian.py tests/test_country_profile.py tests/test_taxonomy.py tests/test_parser.py -q --no-header -p no:cacheprovider)",
+      "Bash(python -m pytest tests/test_automation_risk.py -v --no-header -p no:cacheprovider)",
+      "Bash(npm test *)",
+      "Bash(npm run *)",
+      "Bash(python -m pytest tests/test_api.py tests/test_bayesian.py tests/test_country_profile.py tests/test_taxonomy.py tests/test_parser.py tests/test_automation_risk.py -q --no-header -p no:cacheprovider)",
+      "Bash(git add *)",
+      "Bash(git restore *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(python -m pytest tests/test_api.py tests/test_automation_risk.py tests/test_parser.py -q --no-header -p no:cacheprovider)"
     ]
   }
 }

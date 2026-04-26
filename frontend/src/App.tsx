@@ -21,6 +21,7 @@ export function App() {
   const [input, setInput] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorTrace, setErrorTrace] = useState<string[] | null>(null);
   const [data, setData] = useState<ParseResponse | null>(null);
   const [source, setSource] = useState<ParseSource>('live');
   const [tier, setTier] = useState<ConstraintTier>('smartphone');
@@ -33,6 +34,7 @@ export function App() {
     if (!input.trim() || loading) return;
     setLoading(true);
     setError(null);
+    setErrorTrace(null);
     try {
       const { result, source: src } = await parse({
         raw_input: input,
@@ -43,6 +45,7 @@ export function App() {
         setSource(src);
       } else {
         setError(result.error);
+        setErrorTrace(result.traceback_tail ?? null);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unexpected parser error');
@@ -69,7 +72,12 @@ export function App() {
             role="alert"
             className="card border border-signal-risk/30 bg-signal-risk/5 p-4 text-sm text-signal-risk"
           >
-            {error}
+            <p className="font-semibold">{error}</p>
+            {errorTrace && errorTrace.length > 0 && (
+              <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-clay-900/5 p-2 font-mono text-[11px] leading-snug text-clay-800">
+                {errorTrace.join('\n')}
+              </pre>
+            )}
           </div>
         )}
 

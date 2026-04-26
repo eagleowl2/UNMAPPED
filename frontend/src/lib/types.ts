@@ -122,6 +122,9 @@ export interface ParseError {
   ok: false;
   error: string;
   code?: string;
+  /** Dev-mode tail of the Python traceback. Present iff
+   * `UNMAPPED_VERBOSE_ERRORS != "0"` on the backend. */
+  traceback_tail?: string[];
 }
 
 export type ParseResult = ParseResponse | ParseError;
