@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    logger.info("UNMAPPED SSE v0.4.0 starting — GH + AM profiles loaded")
     logger.info("UNMAPPED SSE v0.3.1 starting — GH + AM profiles loaded")
     yield
     logger.info("UNMAPPED SSE shutting down")
@@ -44,6 +45,7 @@ app = FastAPI(
         "a complete ProfileCard: skills, wage signal, growth signal, network entry, "
         "SMS summary, and USSD menu. Supports GH (Ghana) and AM (Armenia)."
     ),
+    version="0.4.0",
     version="0.3.1",
     lifespan=lifespan,
     docs_url="/docs",
@@ -75,6 +77,7 @@ app.include_router(v1_router, prefix="/api/v1", tags=["v1 (legacy)"])
 async def health() -> dict[str, str]:
     return {
         "status": "ok",
+        "version": "0.4.0",
         "version": "0.3.1",
         "protocol": "UNMAPPED v0.2",
     }
@@ -84,6 +87,7 @@ async def health() -> dict[str, str]:
 async def root() -> JSONResponse:
     return JSONResponse({
         "name": "UNMAPPED Skills Signal Engine",
+        "version": "0.4.0",
         "version": "0.3.1",
         "protocol": "UNMAPPED v0.2",
         "docs": "/docs",

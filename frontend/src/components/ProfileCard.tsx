@@ -1,6 +1,7 @@
 import type { LocaleConfig } from '@/lib/locales';
 import type { ParseResponse } from '@/lib/types';
 import type { ParseSource } from '@/lib/api';
+import { JobMatchPanel } from './JobMatchPanel';
 import { NetworkEntryMap } from './NetworkEntryMap';
 import { OwnershipStatement } from './OwnershipStatement';
 import { QrSimulation } from './QrSimulation';
@@ -86,6 +87,11 @@ export function ProfileCard({ locale, data, source }: Props) {
           variant="hero"
         />
       </section>
+
+      {/* Job-match signal — M2 dynamic opportunity matching */}
+      {profile.job_match && (
+        <JobMatchPanel jobMatch={profile.job_match} />
+      )}
 
       {/* Body — two columns */}
       <div className="grid gap-5 border-t border-clay-100 px-5 py-5 sm:grid-cols-2 sm:px-7 sm:py-6">

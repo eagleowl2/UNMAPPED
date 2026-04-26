@@ -54,6 +54,26 @@ export interface NetworkEntryPoint {
   label: string;
 }
 
+export interface OpportunityEntry {
+  title: string;
+  employer_type: string;
+  channel: string;
+  lat: number;
+  lng: number;
+  label: string;
+  wage_range: string;
+  isco_code: string;
+  formalization_path: string;
+  match_score: number;
+}
+
+export interface JobMatchSignal {
+  score: number;
+  rationale: string;
+  opportunity_count: number;
+  matched_opportunities: OpportunityEntry[];
+}
+
 export interface ProfileCard {
   profile_id: string;
   display_name: string;
@@ -64,6 +84,7 @@ export interface ProfileCard {
   skills: Skill[];
   wage_signal: Signal;
   growth_signal: Signal;
+  job_match?: JobMatchSignal;
   network_entry: NetworkEntryPoint;
   /** ≤ 320 chars; backend targets ≤ 160 (one SMS segment). */
   sms_summary: string;

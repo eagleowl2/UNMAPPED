@@ -21,6 +21,7 @@ from app.core.bayesian import compute_confidence
 from app.core.country_profile import (
     get_confidence_priors,
     get_local_skill_overrides,
+    get_opportunity_catalog,
     get_skill_alias_registry,
     is_zero_credential_context,
     load_country_profile,
@@ -245,6 +246,7 @@ class EvidenceParser:
 
         Returns a dict matching ProfileCard in frontend/src/lib/types.ts.
         """
+        from app.core.jobmatch import compute_job_match
         from app.core.signals import (
             compute_wage_signal,
             compute_growth_signal,
@@ -292,9 +294,21 @@ class EvidenceParser:
             raw_text, skill_items,
             user.zero_credential, extra, self.country_code,
         )
-        # Network entry
+        # Job-match signal (M2) — dynamic BONA-style scoring
+        opportunity_catalog = get_opportunity_catalog(self.profile)
+        job_match_result = compute_job_match(
+            skills=skill_items,
+            country_code=self.country_code,
+            zero_credential=user.zero_credential,
+            profile_languages=user.languages,
+            opportunity_catalog=opportunity_catalog,
+        )
+        job_match_signal = job_match_result["job_match"]
+        dynamic_net_entry = job_match_result["network_entry"]
+
+        # Network entry — prefer dynamic top-1 opportunity coords; fall back to signals.py
         city = user.location.get("city", "")
-        net_entry = get_network_entry(skill_items, self.country_code, city)
+        net_entry = dynamic_net_entry if opportunity_catalog else get_network_entry(skill_items, self.country_code, city)
 
         # Location string
         loc_parts = [p for p in [city, _country_region(self.country_code)] if p]
@@ -351,6 +365,7 @@ class EvidenceParser:
             "skills": skill_items,
             "wage_signal": wage,
             "growth_signal": growth,
+            "job_match": job_match_signal,
             "network_entry": net_entry,
             "sms_summary": sms,
             "ussd_menu": ussd_menu,
