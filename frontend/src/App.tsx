@@ -22,6 +22,7 @@ export function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorTrace, setErrorTrace] = useState<string[] | null>(null);
+  const [fallbackReason, setFallbackReason] = useState<string | null>(null);
   const [data, setData] = useState<ParseResponse | null>(null);
   const [source, setSource] = useState<ParseSource>('live');
   const [tier, setTier] = useState<ConstraintTier>('smartphone');
@@ -35,14 +36,14 @@ export function App() {
     setLoading(true);
     setError(null);
     setErrorTrace(null);
+    setFallbackReason(null);
     try {
-      const { result, source: src } = await parse({
-        raw_input: input,
-        country,
-      });
+      const outcome = await parse({ raw_input: input, country });
+      const { result, source: src, fallbackReason: reason } = outcome;
       if (result.ok) {
         setData(result);
         setSource(src);
+        setFallbackReason(src === 'mock-fallback' ? reason ?? 'unknown' : null);
       } else {
         setError(result.error);
         setErrorTrace(result.traceback_tail ?? null);
@@ -78,6 +79,27 @@ export function App() {
                 {errorTrace.join('\n')}
               </pre>
             )}
+          </div>
+        )}
+
+        {fallbackReason && (
+          <div
+            role="status"
+            className="card border border-sun-500/40 bg-sun-500/10 p-4 text-sm text-sun-700"
+          >
+            <p className="font-semibold">
+              ⚠ Live backend unreachable — showing bundled offline demo
+            </p>
+            <p className="mt-1 text-xs">
+              The profile below is the canned <code className="font-mono">mockParse</code>{' '}
+              fixture, not parsed from your input. Reason:{' '}
+              <code className="font-mono">{fallbackReason}</code>.
+            </p>
+            <p className="mt-1 text-xs">
+              Make sure the backend is running on <code className="font-mono">localhost:8000</code>{' '}
+              (e.g. <code className="font-mono">uvicorn app.main:app --reload --port 8000</code>),
+              then click <em>Generate Profile</em> again.
+            </p>
           </div>
         )}
 
