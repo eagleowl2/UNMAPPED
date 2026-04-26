@@ -14,6 +14,13 @@ Format per Section 12.4 of UNMAPPED Protocol v0.2 spec.
 **Branch:** `fixes`
 **Author:** Claude (Senior Data & Product Analyst, working from `UNMAPPED_Master_Context.docx`)
 **Status:** COMPLETE — 117/117 tests passing locally (106 backend non-embedder + 11 new automation-risk + 27 frontend incl. AutomationRisk)
+## LOG ENTRY: 2026-04-26 (v0.4.0 — Module 2: Dynamic Job-Match Signal)
+
+**Entry ID:** `LOG-0004`
+**Version:** `v0.4.0`
+**Branch:** `module/m2`
+**Author:** Claude (Senior Full-Stack Engineer — M2 Job-Match)
+**Status:** COMPLETE — 178/178 tests passing (29 new M2 tests), ready for merge to `dev`
 
 ---
 
@@ -23,6 +30,7 @@ Format per Section 12.4 of UNMAPPED Protocol v0.2 spec.
 (b) Bundled real ILOSTAT/WDI/Wittgenstein/Data360 data with cited rationale;
 (c) NEET context (Signal 4 from §2.3) surfaced on the ProfileCard;
 (d) Removes localStorage PII violation per Protocol §5.4 / Master Context §6.5.
+`feat` — Module 2: BONA-style dynamic job-match signal engine. Replaces static `network_entry` lookup with a full opportunity-scoring pipeline using VSS `taxonomy_code` (ISCO-08) against a per-country `opportunity_catalog`. Adds `job_match` field to `ProfileCard`. Adds `JobMatchPanel` to the SPA. Zero breaking changes to M1 contract.
 
 ---
 
@@ -167,6 +175,60 @@ Per Master Context §6.4, Railway free-tier (512 MB RAM) will require
 - [ ] Wire ILOSTAT fixtures into a build-time fetcher (today they're
       hand-curated; see §6.1 of Master Context for the option-(b) path).
 - [ ] BONA forensic layer (currently a design concept only).
+| `opportunity_catalog` | ADDED to JSON schema | `schemas/country_profile.json` |
+| `CountryProfile (GH)` | ADDED `opportunity_catalog` (11 entries: NBSSI, GPRTU, MoMo, Makola, CIDA, …) | `config/ghana_urban_informal.json` |
+| `CountryProfile (AM)` | ADDED `opportunity_catalog` (10 entries: TUMO, ATA, e-gov.am, Idram, Inasxarh, …) | `config/armenia_urban_informal.json` |
+| `app/core/jobmatch.py` | NEW — BONA scoring engine: `compute_job_match`, `_score_opportunity`, `_skill_boost` | `app/core/jobmatch.py` |
+| `get_opportunity_catalog()` | NEW helper on country_profile loader | `app/core/country_profile.py` |
+| `OpportunityEntry`, `JobMatchSignal` | NEW Pydantic models | `app/models/schemas.py` |
+| `ProfileCard.job_match` | ADDED optional field | `app/models/schemas.py` |
+| `parse_for_profile()` | WIRED `compute_job_match`; `network_entry` now dynamic (top-1 opp) | `app/core/parser.py` |
+| `OpportunityEntry`, `JobMatchSignal` | NEW TypeScript interfaces | `frontend/src/lib/types.ts` |
+| `ProfileCard.job_match` | ADDED optional field | `frontend/src/lib/types.ts` |
+| `JobMatchPanel.tsx` | NEW component — score bar + ranked opportunity list with formalization paths | `frontend/src/components/JobMatchPanel.tsx` |
+| `ProfileCard.tsx` | INTEGRATED `JobMatchPanel` between hero signals and body | `frontend/src/components/ProfileCard.tsx` |
+| `mock.ts` | ADDED `job_match` to GH_AMARA and AM_ANI fixtures | `frontend/src/lib/mock.ts` |
+| `tests/test_jobmatch.py` | NEW — 29 tests covering scoring engine + integration | `tests/test_jobmatch.py` |
+| `app/main.py` | VERSION bump `0.3.1 → 0.4.0` | `app/main.py` |
+
+---
+
+### 3. Scoring Algorithm (BONA-style)
+
+For each opportunity in `opportunity_catalog`:
+```
+isco_score   = 1.0 if exact 4-digit ISCO match else 0.6 if same major group else 0.1
+skill_boost  = max(confidence) of skills matching this opp's ISCO (exact=conf, major-group=conf*0.6)
+score        = isco_score * 0.55 + skill_boost * 0.35
+             + 0.15 if zero_credential && opp.accepts_zero_credential
+             + 0.10 if profile_language ∈ opp.required_languages
+             + 0.05 * min(len(skills)-1, 2)   [diversification]
+             clamped to [0, 1]
+```
+Filter: keep score ≥ 0.35. Rank descending; take top 5.
+Overall `job_match.score` = weighted mean of top-3 × 100 (weights 0.5/0.3/0.2), floor 10, ceil 100.
+
+---
+
+### 4. Test Delta
+
+| Suite | Before | After | Delta |
+|---|---|---|---|
+| `test_api` | 35 | 35 | — |
+| `test_bayesian` | 7 | 7 | — |
+| `test_country_profile` | 8 | 8 | — |
+| `test_jobmatch` | 0 | 29 | **+29** |
+| `test_multilingual` | 43 | 43 | — |
+| `test_parser` | 46 | 46 | — |
+| `test_taxonomy` | 6 | 6 | — |
+| **TOTAL** | **149** | **178** | **+29** |
+
+---
+
+### 5. Known Limitations (v0.4.0 MVP)
+- Opportunity catalog is Accra/Yerevan-centric; city-level routing not yet implemented.
+- The E5-small semantic embedder occasionally produces false-positive skill matches (pre-existing M1 issue) that can surface unexpected top opportunities for edge-case inputs.
+- No opportunity freshness / TTL mechanism (catalog is static per deploy).
 
 ---
 
