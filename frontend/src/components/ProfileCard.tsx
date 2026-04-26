@@ -1,7 +1,7 @@
 import type { LocaleConfig } from '@/lib/locales';
 import type { ParseResponse } from '@/lib/types';
 import type { ParseSource } from '@/lib/api';
-import { JobMatchPanel } from './JobMatchPanel';
+import { AutomationRisk } from './AutomationRisk';
 import { NetworkEntryMap } from './NetworkEntryMap';
 import { OwnershipStatement } from './OwnershipStatement';
 import { QrSimulation } from './QrSimulation';
@@ -134,6 +134,24 @@ export function ProfileCard({ locale, data, source }: Props) {
           </div>
         </section>
       </div>
+
+      {profile.automation_risk && (
+        <div className="border-t border-clay-100 px-5 py-4 sm:px-7 sm:py-5">
+          <AutomationRisk risk={profile.automation_risk} />
+        </div>
+      )}
+
+      {profile.neet_context && (
+        <div className="border-t border-clay-100 bg-clay-50/30 px-5 py-3 sm:px-7 sm:py-4">
+          <p className="text-xs leading-snug text-clay-700">
+            <span className="font-semibold text-clay-800">Local context · </span>
+            {profile.neet_context.narrative}
+          </p>
+          <p className="mt-1 text-[10px] uppercase tracking-wider text-clay-600">
+            Source: {profile.neet_context.source} · {profile.neet_context.year}
+          </p>
+        </div>
+      )}
     </article>
   );
 }

@@ -1,0 +1,22 @@
+{
+  "source": "World Bank Data360 — Growth & Jobs database; ILO ILOSTAT NEET indicator (SDG 8.6.1)",
+  "source_url": "https://data360.worldbank.org/",
+  "year": 2023,
+  "indicator": "Share of youth (15–24) not in employment, education, or training",
+  "rates": {
+    "GH": {
+      "neet_pct": 24.9,
+      "neet_pct_female": 28.4,
+      "neet_pct_male": 21.5,
+      "year": 2022,
+      "narrative": "About 1 in 4 young Ghanaians aged 15–24 is not in work, school, or training (ILO/World Bank, 2022)."
+    },
+    "AM": {
+      "neet_pct": 31.5,
+      "neet_pct_female": 38.2,
+      "neet_pct_male": 25.0,
+      "year": 2022,
+      "narrative": "About 1 in 3 young Armenians aged 15–24 is not in work, school, or training (ILO/World Bank, 2022) — among the highest rates in Eastern Europe & Central Asia."
+    }
+  }
+}

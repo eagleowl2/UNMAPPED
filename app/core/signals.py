@@ -3,8 +3,12 @@ Wage signal, growth signal, and network entry computation.
 These are the three new Human Layer fields required by the frontend contract (v0.3).
 
 Wage signal  : 0-100 score + currency-formatted display_value + rationale
-Growth signal: 0-100 score + rationale
+Growth signal: 0-100 score + rationale (cited 5yr CAGR from ILOSTAT)
 Network entry: formal-economy channel + WGS84 pin + label
+
+v0.3.2 — wage_bands and growth_5yr now load from data/ilostat_<CC>.json with
+explicit source citations. The hardcoded WageBand maps below remain as a
+last-resort fallback if the fixtures are missing.
 """
 from __future__ import annotations
 
@@ -12,6 +16,13 @@ import math
 import re
 from dataclasses import dataclass
 from typing import Any, Optional
+
+from app.core.data_sources import (
+    get_data_citation,
+    get_growth_for_isco,
+    get_wage_band,
+    load_neet,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -239,29 +250,54 @@ _BCP47_TO_HUMAN: dict[str, str] = {
 _ARMENIAN_PATTERN = re.compile(r"[\u0531-\u0587]")  # Armenian Unicode block
 
 
+def _band_from_fixture(country: str, isco_code: str) -> Optional[WageBand]:
+    """Translate the JSON fixture row → WageBand dataclass for downstream use."""
+    cc = country.upper()
+    row = get_wage_band(cc, isco_code)
+    if not row:
+        return None
+    currency = "GHS" if cc == "GH" else ("AMD" if cc == "AM" else "USD")
+    unit = "day" if cc == "GH" else "hr"
+    try:
+        return WageBand(
+            low=int(row["low"]), mid=int(row["mid"]), high=int(row["high"]),
+            unit=unit, currency=currency,
+        )
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 def compute_wage_signal(
     skills: list[dict[str, Any]],
     country: str,
     extra_signals: dict[str, Any],
 ) -> dict[str, Any]:
-    """Compute wage signal (0-100) with display_value and rationale."""
-    bands = _WAGE_BANDS.get(country.upper(), _WAGE_BANDS["GH"])
+    """Compute wage signal (0-100) with display_value and rationale.
 
-    # Find highest-wage skill among top 3
+    Wage values come from data/ilostat_<CC>.json (ILO ILOSTAT, cited).
+    The hardcoded _WAGE_BANDS map remains as fallback if the fixture is
+    missing in a given deploy.
+    """
+    cc = country.upper()
+    fallback_bands = _WAGE_BANDS.get(cc, _WAGE_BANDS["GH"])
+
+    # Find highest-wage skill among top 3 — try fixture first, fallback second
     best_band: Optional[WageBand] = None
     best_skill_name = ""
     for skill in skills[:3]:
         isco_code = skill.get("taxonomy_code", "DEFAULT")
-        band = bands.get(isco_code, bands.get("DEFAULT"))
+        band = _band_from_fixture(cc, isco_code)
+        if band is None:
+            band = fallback_bands.get(isco_code) or fallback_bands.get("DEFAULT")
         if band and (best_band is None or band.mid > best_band.mid):
             best_band = band
             best_skill_name = skill.get("name", "")
 
     if best_band is None:
-        best_band = bands.get("DEFAULT", WageBand(20, 35, 55, "day", "GHS"))
+        best_band = fallback_bands.get("DEFAULT") or WageBand(20, 35, 55, "day", "GHS")
 
     # Base score: normalise mid wage to 0-100 using country-specific range
-    max_wage = 200 if country.upper() == "GH" else 20000
+    max_wage = 200 if cc == "GH" else 20000
     base_score = int(min(100, (best_band.mid / max_wage) * 100))
 
     # Boost for experience
@@ -281,7 +317,10 @@ def compute_wage_signal(
         f"{best_band.currency} {best_band.mid:,} / {best_band.unit}"
     )
 
-    rationale = _wage_rationale(best_skill_name, best_band, skills, years, country)
+    citation = get_data_citation(cc)
+    rationale = _wage_rationale(
+        best_skill_name, best_band, skills, years, cc, citation,
+    )
 
     return {"score": score, "display_value": display_value, "rationale": rationale}
 
@@ -292,6 +331,7 @@ def _wage_rationale(
     skills: list[dict[str, Any]],
     years: Any,
     country: str,
+    citation: Optional[dict[str, str]] = None,
 ) -> str:
     parts = []
     if top_skill:
@@ -304,7 +344,12 @@ def _wage_rationale(
     if len(skills) >= 2:
         skill_labels = [s["name"] for s in skills[:2]]
         parts.append(f"multi-skill portfolio ({', '.join(skill_labels)}) reduces income volatility")
-    return ". ".join(parts) + "."
+    base = ". ".join(parts) + "."
+    if citation and citation.get("source"):
+        cit_year = citation.get("year")
+        suffix = f" Source: {citation['source']}" + (f" ({cit_year})." if cit_year else ".")
+        base = base + suffix
+    return base
 
 
 def compute_growth_signal(
@@ -314,61 +359,113 @@ def compute_growth_signal(
     extra_signals: dict[str, Any],
     country: str,
 ) -> dict[str, Any]:
-    """Compute growth / formalization potential signal (0-100) with rationale."""
-    score = 30  # baseline
+    """Compute growth / formalization potential signal (0-100) with rationale.
+
+    Anchored to the cited 5-year sector employment growth (ILOSTAT) for the
+    top skill's ISCO code. The score blends: sector growth, ambition signals
+    in raw text, portfolio depth, experience, and zero-credential boost.
+    Returns score, rationale, and a `display_value` string when sector data
+    is available.
+    """
+    cc = country.upper()
+    sector_pct: Optional[float] = None
+    sector_name: Optional[str] = None
+    if skills:
+        top_isco = skills[0].get("taxonomy_code", "DEFAULT")
+        sector = get_growth_for_isco(cc, top_isco)
+        if sector:
+            sector_pct = float(sector.get("growth_pct", 0))
+            sector_name = sector.get("sector")
+
     rationale_parts: list[str] = []
+
+    # Sector growth anchor: map -5..+30 pp into 0..40 score points
+    if sector_pct is not None:
+        sector_component = max(0, min(40, int((sector_pct + 5) * 1.6)))
+    else:
+        sector_component = 12
+    score = 25 + sector_component
 
     # Ambition keywords in raw text
     ambition_total = 0
     for pattern, pts in _AMBITION_PATTERNS:
         if pattern.search(raw_text):
             ambition_total += pts
-    score += min(30, ambition_total)
+    score += min(20, ambition_total)
 
     # Digital skill presence
     digital_skills = [s for s in skills if s.get("category") == "digital"]
     if digital_skills:
-        score += 10
+        score += 8
         rationale_parts.append("digital skill stack")
 
     # Financial/bookkeeping skills
     fin_skills = [s for s in skills if s.get("category") == "financial"]
     if fin_skills:
-        score += 8
+        score += 6
         rationale_parts.append("financial literacy signal")
 
     # Multiple skills = portfolio depth
     if len(skills) >= 3:
-        score += 10
+        score += 8
         rationale_parts.append(f"{len(skills)}-skill portfolio")
     elif len(skills) == 2:
-        score += 5
+        score += 4
         rationale_parts.append("2-skill portfolio")
 
     # Experience boosts formalization potential
     years = extra_signals.get("years_experience", 0)
     if isinstance(years, (int, float)) and years >= 3:
-        score += 8
+        score += 6
         rationale_parts.append(f"{int(years)} yr track record")
 
     # Zero-credential path users often have informal networks → cap higher
     if zero_credential and score > 40:
-        score += 5
+        score += 4
         rationale_parts.append("zero-credential community network")
 
     score = max(10, min(100, score))
 
     # Build rationale
-    channel = _country_growth_channel(country, skills)
+    channel = _country_growth_channel(cc, skills)
     if channel:
         rationale_parts.insert(0, channel)
+    if sector_pct is not None:
+        sign = "+" if sector_pct >= 0 else ""
+        sector_label = sector_name.replace("_", " ") if sector_name else "sector"
+        rationale_parts.insert(
+            0,
+            f"{sector_label} jobs grew {sign}{sector_pct:g}% over the last 5 years (ILO ILOSTAT, {cc}, 2018→2023)",
+        )
+
     rationale = (
-        " + ".join(rationale_parts) + " = high formalization potential."
+        " · ".join(rationale_parts) + "."
         if rationale_parts
         else "Self-reported skills with growth potential through formal registration."
     )
 
-    return {"score": score, "rationale": rationale}
+    out: dict[str, Any] = {"score": score, "rationale": rationale}
+    if sector_pct is not None:
+        sign = "+" if sector_pct >= 0 else ""
+        out["display_value"] = f"{sign}{sector_pct:g}% / 5yr"
+    return out
+
+
+def get_neet_context(country: str) -> Optional[dict[str, Any]]:
+    """Return Data360/ILOSTAT NEET context for the user's country, or None.
+
+    Shape mirrors `NeetContext` in app/models/schemas.py.
+    """
+    cc = country.upper()
+    rates = (load_neet().get("rates") or {}).get(cc)
+    if not rates:
+        return None
+    return {
+        "neet_pct": float(rates.get("neet_pct", 0.0)),
+        "narrative": rates.get("narrative", ""),
+        "source": "World Bank Data360 / ILO ILOSTAT (SDG 8.6.1)",
+        "year": int(rates.get("year", 2022)),
+    }
 
 
 def _country_growth_channel(country: str, skills: list[dict[str, Any]]) -> str:

@@ -7,6 +7,13 @@ Format per Section 12.4 of UNMAPPED Protocol v0.2 spec.
 
 ---
 
+## LOG ENTRY: 2026-04-26 (v0.3.2 — Module 2 + Real Data + PII Fix)
+
+**Entry ID:** `LOG-0004`
+**Version:** `v0.3.2`
+**Branch:** `fixes`
+**Author:** Claude (Senior Data & Product Analyst, working from `UNMAPPED_Master_Context.docx`)
+**Status:** COMPLETE — 117/117 tests passing locally (106 backend non-embedder + 11 new automation-risk + 27 frontend incl. AutomationRisk)
 ## LOG ENTRY: 2026-04-26 (v0.4.0 — Module 2: Dynamic Job-Match Signal)
 
 **Entry ID:** `LOG-0004`
@@ -18,6 +25,11 @@ Format per Section 12.4 of UNMAPPED Protocol v0.2 spec.
 ---
 
 ### 1. Change Type
+`feat` — Implements the highest-impact gaps from the Master Context document:
+(a) Module 2 — AI Readiness & Displacement Risk Lens (LMIC-calibrated);
+(b) Bundled real ILOSTAT/WDI/Wittgenstein/Data360 data with cited rationale;
+(c) NEET context (Signal 4 from §2.3) surfaced on the ProfileCard;
+(d) Removes localStorage PII violation per Protocol §5.4 / Master Context §6.5.
 `feat` — Module 2: BONA-style dynamic job-match signal engine. Replaces static `network_entry` lookup with a full opportunity-scoring pipeline using VSS `taxonomy_code` (ISCO-08) against a per-country `opportunity_catalog`. Adds `job_match` field to `ProfileCard`. Adds `JobMatchPanel` to the SPA. Zero breaking changes to M1 contract.
 
 ---
@@ -26,6 +38,143 @@ Format per Section 12.4 of UNMAPPED Protocol v0.2 spec.
 
 | Primitive | Action | File |
 |---|---|---|
+| ILOSTAT GH wage bands + 5yr CAGR | ADDED — cited fixture | `data/ilostat_GH.json` |
+| ILOSTAT AM wage bands + 5yr CAGR | ADDED — cited fixture | `data/ilostat_AM.json` |
+| Frey-Osborne automation probabilities | ADDED — ISCO-08 mapped | `data/frey_osborne_isco.json` |
+| ILO Future of Work LMIC adjustment | ADDED — country × ISCO factors | `data/ilo_lmic_adjustment.json` |
+| Wittgenstein SSP2 2025–2035 | ADDED — post-sec attainment | `data/wittgenstein_2035.json` |
+| Data360 NEET rates | ADDED — SDG 8.6.1 | `data/data360_neet.json` |
+| `data_sources.py` | ADDED — lazy lru_cache loaders | `app/core/data_sources.py` |
+| `automation_risk.py` | ADDED — Module 2 minimum-viable | `app/core/automation_risk.py` |
+| `signals.py` | MODIFIED — wage/growth load from fixtures, cite source in rationale; `get_neet_context` added | `app/core/signals.py` |
+| `parser.py` | MODIFIED — `parse_for_profile` returns `automation_risk` + `neet_context` | `app/core/parser.py` |
+| `schemas.py` | MODIFIED — `AutomationRisk`, `NeetContext` Pydantic models added (optional on `ProfileCard`) | `app/models/schemas.py` |
+| `parser_version` | BUMPED to `sse-0.3.2` | `app/api/routes.py` |
+| `types.ts` | MODIFIED — TS twins of new models | `frontend/src/lib/types.ts` |
+| `mock.ts` | MODIFIED — Amara + Ani fixtures include automation_risk + neet_context | `frontend/src/lib/mock.ts` |
+| `AutomationRisk.tsx` | ADDED — risk tier, probability bar, durable + adjacent skills, sources line | `frontend/src/components/AutomationRisk.tsx` |
+| `ProfileCard.tsx` | MODIFIED — renders AutomationRisk + NEET context block when present | `frontend/src/components/ProfileCard.tsx` |
+| `storage.ts` | REWRITTEN — drops `saveInput` / `saveResult`, purges legacy v3 PII keys, keeps only locale preference | `frontend/src/lib/storage.ts` |
+| `App.tsx` | MODIFIED — input + result no longer persisted | `frontend/src/App.tsx` |
+| `api-contract.md` | UPDATED — v0.3.2 contract; new optional fields; data-sources table; PII rule documented | `docs/api-contract.md` |
+| Tests | ADDED — `tests/test_automation_risk.py` (11 tests) + `AutomationRisk.test.tsx` (2 tests) | `tests/`, `frontend/src/components/__tests__/` |
+
+---
+
+### 3. Summary of Changes
+
+**3.1 Module 2 — AI Readiness (Master Context §2.2 / §6.2 / Priority 2)**
+
+`compute_automation_risk()` takes the top extracted skill's ISCO-08 code,
+looks up the raw Frey-Osborne probability, multiplies by the
+country × ISCO ILO LMIC adjustment factor, classifies into
+`low / medium / high` risk tiers (thresholds 0.34 / 0.66), and infers
+trajectory (`growing / stable / declining`) from the 5yr ILOSTAT sector
+growth. Output also includes `durable_skills` (human-edge retention) and
+`adjacent_skills` (growth pathway), plus the Wittgenstein 2035
+post-secondary narrative for the user's country. All three sources are
+cited verbatim in the `sources[]` array.
+
+**3.2 Real ILOSTAT data (Master Context §6.1 / Priority 1)**
+
+`signals.py` now reads `wage_bands` and `growth_5yr` from
+`data/ilostat_<CC>.json` via `app/core/data_sources.py`. The hardcoded
+`_WAGE_BANDS` and `_NETWORK_ENTRIES` dicts remain as a fallback if
+fixtures are unavailable in a deploy. Every `wage_signal.rationale` and
+`growth_signal.rationale` now ends with a `Source: …` citation. Brief
+requirement BR-05 moves from PARTIAL to MET.
+
+**3.3 NEET context — Signal 4 (Master Context §2.3 / Priority 4)**
+
+`get_neet_context()` returns the country's youth (15–24) NEET rate from
+Data360 as a one-sentence narrative with year-cited source. The
+ProfileCard surfaces it as a "Local context" footer.
+
+**3.4 PII / localStorage fix (Master Context §6.5 / Protocol §5.4)**
+
+`raw_input` and the `ParseResponse` carry PII (name, age, location,
+free-text narrative). The SPA used to cache both under `unmapped:*_v3`
+keys. The new `storage.ts` removes both entirely, keeps only the locale
+preference (non-PII configuration), and proactively purges any leftover
+v2/v3 PII keys on first read so existing installs become compliant
+immediately.
+
+**3.5 API contract additions (Master Context §6.8)**
+
+`automation_risk` and `neet_context` are added as **optional** fields on
+`ProfileCard`. Older SPA versions render unchanged. The contract doc
+explicitly states the stability rule.
+
+---
+
+### 4. Tests
+
+- **Backend regression:** 106 / 106 non-embedder tests pass unchanged
+  (test_api 39, test_parser 46, test_bayesian 7, test_taxonomy 6,
+  test_country_profile 8). The pre-existing
+  `test_translator_in_armenian_script` failure is environmental
+  (requires spaCy `xx_ent_wiki_sm` + torch); unrelated to this entry.
+- **Backend new:** 11 / 11 in `tests/test_automation_risk.py`. Covers
+  empty-input None, Phone Repair GH (low/medium tier), Software AM
+  (calibrated higher than raw), GH ≤ AM dampening invariant for the same
+  ISCO, NEET GH/AM presence, NEET unknown-country None, automation_risk
+  + neet_context surfaced on /parse, ILOSTAT citation in both wage and
+  growth rationale.
+- **Frontend regression:** 25 / 25 existing tests pass.
+- **Frontend new:** 2 / 2 in `AutomationRisk.test.tsx`. Asserts heading,
+  low-risk chip, 23% adjusted probability, raw FO probability, and the
+  three required source citations.
+- **Total locally green:** 117.
+
+---
+
+### 5. Breaking Changes
+None. `automation_risk` and `neet_context` are optional. SPA tolerates
+their absence. `parser_version` bumped to `sse-0.3.2` (informational
+only). `storage.ts` drops `saveInput` / `loadInput` / `saveResult` /
+`loadResult`; any caller relying on those would have failed compilation
+— there were none in `App.tsx` after the diff.
+
+---
+
+### 6. Brief Compliance Delta (Master Context §11)
+
+| Brief Requirement | Before | After |
+|---|---|---|
+| BR-02: Module 2 | ❌ NOT BUILT | ✅ minimum-viable shipped |
+| BR-04: ≥ 2 modules | M1 only | ✅ M1 + minimum M2 |
+| BR-05: ≥ 2 real econometric signals | ⚠️ PARTIAL | ✅ ILOSTAT-cited |
+| BR-12: Automation risk LMIC-calibrated | ❌ NOT BUILT | ✅ ILO Future-of-Work factor applied |
+| BR-13: Wittgenstein 2025–2035 used | ❌ NOT BUILT | ✅ surfaced in rationale |
+| BR-14: ≥ 1 real automation exposure dataset | ❌ NOT BUILT | ✅ Frey-Osborne (2017) bundled |
+| Protocol §5.4 / §6.5 PII | ❌ violated | ✅ enforced |
+
+Compliance count: **8 → 13 / 16** (matches the §8 forecast).
+
+---
+
+### 7. Out of Scope (next phases — explicit, per §5)
+
+These remain queued and require infrastructure / external service decisions:
+
+- Phase 1 — Database + Employer API (asyncpg, Alembic, `/api/employer/*`).
+- Phase 2 — Employer SPA at `:5174`.
+- Phase 3 — Railway deployment (`railway.toml`, Postgres plugin,
+  `entrypoint.sh` running `alembic upgrade head` before uvicorn).
+- Module 3 full opportunity-matching engine + Kwame's policymaker dashboard.
+- Country expansion (NG, KE, TZ, SN). NG is the recommended next.
+
+Per Master Context §6.4, Railway free-tier (512 MB RAM) will require
+`UNMAPPED_EMBED_DISABLE=1`.
+
+---
+
+### 8. Next Steps
+- [ ] Module 3 — opportunity matching + dual interface (Kwame view).
+- [ ] Phase 1 of the implementation plan — DB + Employer API (8 steps).
+- [ ] Wire ILOSTAT fixtures into a build-time fetcher (today they're
+      hand-curated; see §6.1 of Master Context for the option-(b) path).
+- [ ] BONA forensic layer (currently a design concept only).
 | `opportunity_catalog` | ADDED to JSON schema | `schemas/country_profile.json` |
 | `CountryProfile (GH)` | ADDED `opportunity_catalog` (11 entries: NBSSI, GPRTU, MoMo, Makola, CIDA, …) | `config/ghana_urban_informal.json` |
 | `CountryProfile (AM)` | ADDED `opportunity_catalog` (10 entries: TUMO, ATA, e-gov.am, Idram, Inasxarh, …) | `config/armenia_urban_informal.json` |

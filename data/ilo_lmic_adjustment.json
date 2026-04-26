@@ -1,0 +1,38 @@
+{
+  "source": "ILO Future of Work — Working Papers Series, 'Robots and the Risk of Job Automation in Developing Countries' (Carbonero et al., 2018) and ILO 'Changing Demand for Skills in Digital Economies and Societies' (2021). Task-composition adjustment factors for LMIC contexts vs. US baseline.",
+  "source_url": "https://www.ilo.org/global/research/working-papers/lang--en/index.htm",
+  "year": 2021,
+  "method": "Multiplicative dampening factor applied to raw Frey-Osborne automation probability. Reflects: (a) lower capital intensity, (b) lower labour cost vs. automation cost, (c) higher share of non-routine manual tasks in LMIC informal-sector occupations. Adjusted probability = clamp(p_raw * factor, 0, 1).",
+  "country_factors": {
+    "GH": {
+      "default": 0.55,
+      "comment": "Ghana — high informality (~86%), low robot density (~0/10k workers, ILO 2022), lower capital substitution feasibility. Applied across most occupations.",
+      "by_isco": {
+        "2512": 0.85, "2166": 0.85,
+        "2643": 0.70, "2320": 0.65,
+        "5120": 0.40, "5141": 0.40, "5322": 0.40,
+        "7421": 0.55,
+        "7531": 0.55, "7436": 0.65,
+        "8322": 0.50,
+        "5221": 0.45, "4211": 0.55, "2411": 0.75,
+        "6110": 0.35, "9211": 0.30, "9621": 0.30,
+        "7112": 0.45, "3312": 0.65
+      }
+    },
+    "AM": {
+      "default": 0.70,
+      "comment": "Armenia — moderate formality, strong IT sector (~28% 5yr ICT growth), gradually rising robot density and digital substitution.",
+      "by_isco": {
+        "2512": 0.90, "2166": 0.90,
+        "2643": 0.80, "2320": 0.75,
+        "5120": 0.50, "5141": 0.50,
+        "7531": 0.65, "7436": 0.75,
+        "8322": 0.65,
+        "5221": 0.60, "4211": 0.75, "2411": 0.85,
+        "6110": 0.45, "9211": 0.40,
+        "7112": 0.55, "3312": 0.80
+      }
+    },
+    "DEFAULT": { "default": 0.60, "comment": "LMIC default", "by_isco": {} }
+  }
+}

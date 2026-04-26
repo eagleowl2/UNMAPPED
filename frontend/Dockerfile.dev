@@ -9,8 +9,12 @@ WORKDIR /app
 RUN apk add --no-cache wget
 
 # Install dependencies separately so node_modules is layer-cached.
-COPY package.json package-lock.json* ./
-RUN npm install --no-audit --no-fund
+# Only copy package.json — the host's package-lock.json was generated on
+# Windows (win32-x64-msvc rollup binary) and confuses npm's optional-deps
+# resolver inside this Linux/musl image (npm/cli#4828). Letting npm
+# resolve from package.json picks the correct @rollup/rollup-linux-x64-musl.
+COPY package.json ./
+RUN npm install --no-audit --no-fund --include=optional
 
 # Source is bind-mounted at runtime via docker-compose, so we don't COPY
 # it here — that would only get baked into the image and shadowed by the

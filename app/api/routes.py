@@ -7,7 +7,9 @@ Legacy endpoint:  POST /api/v1/parse (retained for backward compat, same logic)
 from __future__ import annotations
 
 import logging
+import os
 import time
+import traceback
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, status
@@ -23,6 +25,11 @@ from app.models.schemas import (
 )
 
 logger = logging.getLogger(__name__)
+
+# When set (default in dev), the /parse error response includes the actual
+# exception class + message so the SPA shows it directly instead of the
+# generic "Internal parser error". Disable in production by setting to "0".
+_VERBOSE_ERRORS = os.getenv("UNMAPPED_VERBOSE_ERRORS", "1") != "0"
 
 # ---------------------------------------------------------------------------
 # Two routers:
@@ -60,7 +67,7 @@ def _do_parse(req: ParseRequest, t0: float) -> dict[str, Any]:
         "profile": profile_dict,
         "latency_ms": latency_ms,
         "country": req.country.upper(),
-        "parser_version": "sse-0.3.1",
+        "parser_version": "sse-0.3.2",
     }
 
 
@@ -92,6 +99,14 @@ the frontend contract — the SPA falls back to its bundled mock automatically.
 )
 async def parse_public(body: ParseRequest) -> JSONResponse:
     t0 = time.perf_counter()
+    # Log inputs at DEBUG so we can correlate failures with the exact text
+    # that triggered them. raw_input is truncated to 200 chars to avoid
+    # blowing out the log on large payloads.
+    snippet = (body.raw_input[:200] + "…") if len(body.raw_input) > 200 else body.raw_input
+    logger.info(
+        "[/parse] country=%s len=%d input=%r",
+        body.country, len(body.raw_input), snippet,
+    )
     try:
         result = _do_parse(body, t0)
         return JSONResponse(content=result)
@@ -102,15 +117,36 @@ async def parse_public(body: ParseRequest) -> JSONResponse:
             content={"ok": False, "error": str(exc), "code": "UNSUPPORTED_LOCALE"},
         )
     except ValueError as exc:
+        logger.warning(
+            "[/parse] ValueError for country=%s input=%r: %s",
+            body.country, snippet, exc,
+        )
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content={"ok": False, "error": str(exc), "code": "PARSER_FAILURE"},
         )
     except Exception as exc:
-        logger.exception("Unexpected parser error for country=%s", body.country)
+        # Always log the full traceback to backend stderr.
+        logger.exception(
+            "[/parse] UNEXPECTED parser error for country=%s input=%r",
+            body.country, snippet,
+        )
+        # In dev (default), surface the actual exception in the SPA so the
+        # user can copy-paste it back. Set UNMAPPED_VERBOSE_ERRORS=0 in prod.
+        if _VERBOSE_ERRORS:
+            error_msg = f"{type(exc).__name__}: {exc}"
+            tb_tail = traceback.format_exc().splitlines()[-6:]
+        else:
+            error_msg = "Internal parser error"
+            tb_tail = []
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content={"ok": False, "error": "Internal parser error", "code": "PARSER_FAILURE"},
+            content={
+                "ok": False,
+                "error": error_msg,
+                "code": "PARSER_FAILURE",
+                **({"traceback_tail": tb_tail} if tb_tail else {}),
+            },
         )
 
 

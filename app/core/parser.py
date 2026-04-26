@@ -251,9 +251,11 @@ class EvidenceParser:
             compute_wage_signal,
             compute_growth_signal,
             get_network_entry,
+            get_neet_context,
             bcp47_to_human,
             detect_age,
         )
+        from app.core.automation_risk import compute_automation_risk
 
         t_hash = hashlib.sha256(raw_text.encode()).hexdigest()
         now = datetime.now(timezone.utc).isoformat()
@@ -350,12 +352,24 @@ class EvidenceParser:
             growth_score=growth["score"],
         )
 
+        # Module 2 — automation risk (must run before category/taxonomy_code stripped)
+        from app.core.data_sources import get_growth_for_isco
+        sector_pct = None
+        if skill_items:
+            sector = get_growth_for_isco(self.country_code, skill_items[0].get("taxonomy_code", "DEFAULT"))
+            if sector:
+                sector_pct = sector.get("growth_pct")
+        automation_risk = compute_automation_risk(skill_items, self.country_code, sector_pct)
+
+        # Module 3 (partial) — NEET context (Signal 4)
+        neet_context = get_neet_context(self.country_code)
+
         # Strip pass-through keys before returning
         for s in skill_items:
             s.pop("category", None)
             s.pop("taxonomy_code", None)
 
-        return {
+        result: dict[str, Any] = {
             "profile_id": profile_id,
             "display_name": display_name,
             "pseudonym": pseudonym,
@@ -370,6 +384,11 @@ class EvidenceParser:
             "sms_summary": sms,
             "ussd_menu": ussd_menu,
         }
+        if automation_risk is not None:
+            result["automation_risk"] = automation_risk
+        if neet_context is not None:
+            result["neet_context"] = neet_context
+        return result
 
     # ------------------------------------------------------------------
     # Extraction helpers

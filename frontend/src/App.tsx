@@ -15,22 +15,26 @@ export function App() {
     const saved = storage.loadLocale();
     return saved === 'GH' || saved === 'AM' ? saved : DEFAULT_LOCALE;
   });
-  const [input, setInput] = useState<string>(() => storage.loadInput());
+  // Per protocol §5.4 / Master Context §6.5: raw_input and the parse
+  // result are PII. They are NEVER persisted to localStorage. Both live
+  // only in component state and are cleared on tab close / refresh.
+  const [input, setInput] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<ParseResponse | null>(() => storage.loadResult());
+  const [errorTrace, setErrorTrace] = useState<string[] | null>(null);
+  const [data, setData] = useState<ParseResponse | null>(null);
   const [source, setSource] = useState<ParseSource>('live');
   const [tier, setTier] = useState<ConstraintTier>('smartphone');
 
   const locale = useMemo(() => LOCALES[country], [country]);
 
-  useEffect(() => storage.saveInput(input), [input]);
   useEffect(() => storage.saveLocale(country), [country]);
 
   const handleSubmit = useCallback(async () => {
     if (!input.trim() || loading) return;
     setLoading(true);
     setError(null);
+    setErrorTrace(null);
     try {
       const { result, source: src } = await parse({
         raw_input: input,
@@ -39,9 +43,9 @@ export function App() {
       if (result.ok) {
         setData(result);
         setSource(src);
-        storage.saveResult(result);
       } else {
         setError(result.error);
+        setErrorTrace(result.traceback_tail ?? null);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unexpected parser error');
@@ -68,11 +72,16 @@ export function App() {
             role="alert"
             className="card border border-signal-risk/30 bg-signal-risk/5 p-4 text-sm text-signal-risk"
           >
-            {error}
+            <p className="font-semibold">{error}</p>
+            {errorTrace && errorTrace.length > 0 && (
+              <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-clay-900/5 p-2 font-mono text-[11px] leading-snug text-clay-800">
+                {errorTrace.join('\n')}
+              </pre>
+            )}
           </div>
         )}
 
-        {data ? (
+        {data?.profile?.sms_summary ? (
           <>
             <ConstraintTierSwitcher value={tier} onChange={setTier} />
             <TierView locale={locale} data={data} source={source} tier={tier} />

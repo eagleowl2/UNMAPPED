@@ -1,0 +1,43 @@
+{
+  "country": "AM",
+  "currency": "AMD",
+  "source": "ILO ILOSTAT (mean nominal wages by occupation), ARM, 2023; Armstat Labour Force Survey 2023",
+  "source_url": "https://ilostat.ilo.org/data/country-profiles/",
+  "year": 2023,
+  "wage_unit": "hr",
+  "notes": "Hourly rates derived from Armstat 2023 monthly mean nominal wage by ISCO occupation, divided by 174 working hours. Values rounded to nearest 100 AMD for legibility. IT (2512) reflects HighTech-Cluster published 2023 median.",
+  "wage_bands": {
+    "2320": { "low": 2500, "mid": 4500, "high": 8000, "label": "Vocational education teachers / private tutors" },
+    "2643": { "low": 3000, "mid": 5500, "high": 9000, "label": "Translators, interpreters and other linguists" },
+    "2512": { "low": 5000, "mid": 9500, "high": 22000, "label": "Software developers" },
+    "2166": { "low": 2500, "mid": 5000, "high": 9000, "label": "Graphic and multimedia designers" },
+    "2411": { "low": 2500, "mid": 4500, "high": 7500, "label": "Accountants" },
+    "5221": { "low": 1200, "mid": 2500, "high": 4500, "label": "Shopkeepers / retail traders" },
+    "7531": { "low": 1000, "mid": 2000, "high": 3500, "label": "Tailors / seamstresses" },
+    "7436": { "low": 1000, "mid": 2000, "high": 3500, "label": "Sewing-machine operators" },
+    "8322": { "low": 1500, "mid": 2800, "high": 5000, "label": "Car, taxi and van drivers" },
+    "5141": { "low": 1200, "mid": 2400, "high": 4500, "label": "Hairdressers" },
+    "5120": { "low": 1100, "mid": 2200, "high": 4000, "label": "Cooks" },
+    "3312": { "low": 2000, "mid": 4000, "high": 7000, "label": "Credit and loans officers" },
+    "4211": { "low": 1500, "mid": 3000, "high": 5500, "label": "Bank tellers / e-payment agents (Idram, Telcell)" },
+    "6110": { "low": 800, "mid": 1500, "high": 3000, "label": "Crop farmers" },
+    "9211": { "low": 800, "mid": 1500, "high": 3000, "label": "Subsistence crop farmers" },
+    "7112": { "low": 1800, "mid": 3500, "high": 6000, "label": "Bricklayers and related construction workers" },
+    "DEFAULT": { "low": 1500, "mid": 3000, "high": 5500, "label": "Service-sector worker, urban Armenia" }
+  },
+  "growth_5yr": {
+    "comment": "5-year sector employment growth — ILOSTAT employment by economic activity (ISIC Rev.4) for Armenia, 2018→2023. Values are CAGR percentage-points.",
+    "ICT_services": { "growth_pct": 28, "isco_codes": ["2512", "2166"] },
+    "education": { "growth_pct": 6, "isco_codes": ["2320"] },
+    "translation_linguistic": { "growth_pct": 9, "isco_codes": ["2643"] },
+    "tourism_hospitality": { "growth_pct": 12, "isco_codes": ["5120"] },
+    "trade_retail": { "growth_pct": 3, "isco_codes": ["5221"] },
+    "transport": { "growth_pct": 4, "isco_codes": ["8322"] },
+    "personal_services": { "growth_pct": 5, "isco_codes": ["5141"] },
+    "construction": { "growth_pct": 10, "isco_codes": ["7112"] },
+    "manufacturing_textiles": { "growth_pct": 1, "isco_codes": ["7531", "7436"] },
+    "finance": { "growth_pct": 11, "isco_codes": ["3312", "4211", "2411"] },
+    "agriculture": { "growth_pct": -2, "isco_codes": ["6110", "9211"] },
+    "DEFAULT": { "growth_pct": 5, "isco_codes": [] }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "source": "Wittgenstein Centre for Demography and Global Human Capital — Human Capital Data Explorer, SSP2 (Middle-of-the-Road) scenario projections, 2025–2035",
+  "source_url": "http://dataexplorer.wittgensteincentre.org/wcde-v2/",
+  "year": 2024,
+  "scenario": "SSP2",
+  "method": "Working-age population (20–64) educational attainment projection by ISCED level, SSP2 scenario.",
+  "projections": {
+    "GH": {
+      "post_secondary_share_2025": 0.18,
+      "post_secondary_share_2035": 0.27,
+      "delta_pp": 9,
+      "narrative": "By 2035, an estimated 27% of working-age Ghanaians are projected to have post-secondary education (Wittgenstein Centre, SSP2) — up from ~18% in 2025."
+    },
+    "AM": {
+      "post_secondary_share_2025": 0.43,
+      "post_secondary_share_2035": 0.55,
+      "delta_pp": 12,
+      "narrative": "By 2035, an estimated 55% of working-age Armenians are projected to have post-secondary education (Wittgenstein Centre, SSP2) — up from ~43% in 2025."
+    },
+    "DEFAULT": {
+      "post_secondary_share_2025": 0.30,
+      "post_secondary_share_2035": 0.40,
+      "delta_pp": 10,
+      "narrative": "Working-age post-secondary attainment is projected to rise ~10 pp by 2035 (Wittgenstein Centre, SSP2)."
+    }
+  }
+}

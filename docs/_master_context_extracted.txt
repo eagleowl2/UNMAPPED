@@ -1,0 +1,563 @@
+UNMAPPED
+Master Context Document
+World Bank Youth Summit × Hack-Nation  |  Global AI Hackathon 2026
+Compiled: April 26, 2026  |  Protocol v0.2  |  Codebase v0.3.1-sse
+─────────────────────────────────────────
+This document synthesises the hackathon brief, protocol specification,
+codebase architecture, and next-phase implementation plan
+into a single reference for the vibecoding session.
+
+1. The Problem — What UNMAPPED Must Solve
+The World Bank Youth Summit challenge brief identifies a structural global failure affecting 600+ million young people in low- and middle-income countries (LMICs). Three interlocking breakdowns make talented youth economically invisible:
+
+
+1.1 Design Persona — Amara
+Every architecture decision must trace back to this specific user, not a generic 'youth':
+
+
+1.2 Design Persona — The Policymaker
+
+1.3 The Core Mandate from the Brief
+
+The brief requires at least two of three modules plus country-agnostic localizability. Strong submissions show real econometric data, design for constraint, demonstrate localizability with evidence (not just slides), and are honest about limits.
+
+
+2. Protocol Specification — UNMAPPED v0.2
+2.1 Core Design Philosophy
+
+
+2.2 Three Modules
+Module 1 — Skills Signal Engine (SSE)  ✅ IMPLEMENTED
+Converts heterogeneous, multi-source evidence into a standardized, portable Verifiable Skill Signal (VSS). Handles everything from formal diplomas to zero-credential community attestations.
+Evidence input types: formal_credential, task_log, peer_attestation, community_navigator, mobile_payment, github_commit, assessment_score, observed_video
+Taxonomy crosswalk: ISCO-08 (primary) → ESCO v1.2 (multilingual) → O*NET 28.1 (task detail) → local_overlay (country-specific informal extensions). NetworkX graph traversal.
+Confidence scoring: Bayesian Beta conjugate update (no full MCMC for MVP). Tiers: Emerging (0–0.40) / Developing (0.40–0.60) / Established (0.60–0.80) / Expert (0.80–1.0)
+Human layer rendering: Locale-aware. ISCO codes → plain-language titles. Confidence scores → 3-tier labels. Automation risk → plain-language trajectory string.
+Portability outputs: JSON-LD + PDF profile card + QR code + SMS summary ≤ 160 chars + USSD pre-computation
+Ownership controls: youth user can dispute any skill, add evidence, share profile, request deletion
+
+Module 2 — AI Readiness & Displacement Risk Lens  ❌ NOT YET IMPLEMENTED
+Given a VSS and locale context, produces an honest LMIC-calibrated readiness assessment showing how the skills landscape is shifting to 2035.
+Required datasets: Frey-Osborne automation scores (base), ILO Future of Work task indices (LMIC calibration — critical), World Bank STEP microdata, Wittgenstein Centre 2025–2035 projections
+Also uses: World Bank Human Capital Index, UNESCO Institute for Statistics, UN Population Projections, ITU Digital Development data
+Output: per-occupation automation_risk_score, risk_trajectory_2035, durable_skills[], adjacent_skills[], resilience_score, confidence_interval. Plain-language for youth; full JSON for institutions.
+LMIC calibration is mandatory: automation risk in Kampala ≠ Kuala Lumpur. Task-composition adjustment via ILO indices is required, not optional.
+
+Module 3 — Opportunity Matching & Econometric Dashboard  ❌ NOT YET IMPLEMENTED
+Bidirectional matching between VSS (youth) and Econometric Opportunity Signals (employer). Dual-view output: youth card (Amara) and aggregate dashboard (Kwame). All signals visible to user — none buried in algorithm.
+Required econometric sources: ILO ILOSTAT (wages, employment growth), World Bank WDI, WBES (firm-level), Data360 Growth & Jobs, World Bank GLD, WBG Global Jobs Indicators
+Also uses: B-READY, World Governance Indicators, Women Business & Law 2024, ILO Employment & Informality Stats
+Mandatory display: ≥ 2 real econometric signals visible to youth user (wage range + sector employment growth)
+Dual interface: youth view (honest, grounded, not aspirational matching) and policymaker view (aggregate signals, no PII)
+
+2.3 Mandatory Econometric Signals
+The brief explicitly requires at least 2 real econometric signals surfaced visibly to the user — not buried in the algorithm:
+
+
+2.4 Constraint Layer — Bandwidth Tiers
+
+2.5 Localizability — Config-Only
+The following must be configurable without changing a single line of code:
+Labour market data source and structure (wage indices, sector classifications)
+Education level taxonomy and credential mapping
+Language and script of the user interface
+Automation exposure calibration (risk profiles differ by infrastructure context)
+Opportunity types surfaced (formal employment, self-employment, gig, training pathways)
+Evidence types enabled (mobile_payment for Ghana; github_commit for Armenia)
+BONA network graph (accra_informal_2024.graphml vs yerevan_formal_2024.graphml)
+
+
+2.6 Zero-Credential Path
+When a user has no formal documents at all, the protocol does NOT fail. It triggers a Zero-Credential Flow:
+Community Navigator Attestation Prompt — structured attestation request to registered navigator
+Mobile Payment Signal Adapter — M-Pesa/MTN Mobile Money transaction history as business activity signal
+Peer Attestation Micro-Survey — 3-question SMS survey to up to 5 named peers. Min 2 responses required.
+Observed Task Log — short task video upload, transcribed by navigator
+Profile generated with confidence_tier: 'Emerging' and explicit transparency statement
+
+
+3. Codebase — Current State (v0.3.1)
+3.1 Repository Layout
+UNMAPPED-main/
+├── app/                        ← FastAPI backend
+│   ├── main.py                 ← FastAPI app, CORS, lifespan, /health
+│   ├── api/routes.py           ← POST /parse, /api/v1/parse (legacy alias)
+│   ├── core/
+│   │   ├── parser.py           ← EvidenceParser — 4-stage multilingual pipeline
+│   │   ├── taxonomy.py         ← TaxonomyGraph — NetworkX ISCO-08/ESCO/O*NET
+│   │   ├── bayesian.py         ← Beta conjugate confidence scoring
+│   │   ├── signals.py          ← WageSignal, GrowthSignal, NetworkEntryPoint
+│   │   ├── human_layer.py      ← HumanLayerRenderer (Jinja2: HTML/SMS/USSD)
+│   │   ├── country_profile.py  ← JSON schema-validated config loader
+│   │   └── multilingual.py     ← AliasMatcher + MultilingualEmbedder (E5-small)
+│   └── models/schemas.py       ← Pydantic v2 request/response models
+├── config/
+│   ├── ghana_urban_informal.json
+│   └── armenia_urban_informal.json
+├── schemas/
+│   ├── country_profile.json    ← JSON Schema v7
+│   ├── verifiable_skill_signal.json
+│   └── human_layer.json
+├── tests/                      ← 149 tests passing
+│   ├── test_api.py             ← 39 tests (contract compliance, locale swap)
+│   ├── test_parser.py          ← 46 tests (Amara GH + Ani AM canonical vectors)
+│   ├── test_multilingual.py    ← 43 tests (Twi, Ga, Armenian, Russian)
+│   ├── test_bayesian.py        ← 7 tests
+│   ├── test_taxonomy.py        ← 6 tests
+│   └── test_country_profile.py ← 8 tests
+├── frontend/                   ← React/Vite/TypeScript/Tailwind SPA
+│   ├── src/
+│   │   ├── lib/
+│   │   │   ├── api.ts          ← HTTP client, 8s timeout, offline fallback
+│   │   │   ├── types.ts        ← TypeScript mirror of schemas.py
+│   │   │   ├── mock.ts         ← GH_SAMPLE (Amara) + AM_SAMPLE (Ani) fixtures
+│   │   │   └── locales.ts      ← GH/AM locale config, backendSupported flags
+│   │   ├── components/
+│   │   │   ├── ProfileCard.tsx         ← Section 4.2 layout (hero row + 2-col body)
+│   │   │   ├── SignalBar.tsx            ← Gradient hero cards for wage + growth
+│   │   │   ├── SkillList.tsx            ← Confidence bars with tier labels
+│   │   │   ├── NetworkEntryMap.tsx      ← Offline SVG map + coordinates
+│   │   │   ├── OwnershipStatement.tsx   ← 'This profile is YOURS' per Section 4.2
+│   │   │   ├── ConstraintTierSwitcher.tsx ← Smartphone/SMS/USSD tab
+│   │   │   ├── SmsPreview.tsx           ← 160-char SMS + segment counter
+│   │   │   ├── UssdSimulator.tsx        ← Interactive feature-phone shell
+│   │   │   ├── InputPanel.tsx           ← Free-text input, locale switcher
+│   │   │   └── LocaleSwitcher.tsx       ← GH/AM toggle
+│   │   └── App.tsx                      ← Main shell, state, fetch
+│   ├── Dockerfile.dev                   ← node:20-alpine + vite --host 0.0.0.0
+│   └── package.json                     ← v0.3.0-sse-alpha.4
+├── Dockerfile                           ← FastAPI + spaCy backend image
+├── docker-compose.yml                   ← backend + frontend, healthchecks
+├── requirements.txt
+├── CHANGELOG.md
+└── PROJECT_LOG.md
+
+3.2 API Contract — POST /parse (Stable as of v0.3.1)
+Request
+
+
+Response — ProfileCard shape
+
+
+Error Response
+Backend always returns HTTP 200. On failure: { ok: false, error: string, code?: 'UNSUPPORTED_LOCALE' | 'PARSER_FAILURE' }. SPA reads ok: false and falls back to bundled mock automatically.
+
+3.3 Parser Pipeline — 4 Stages (v0.3.1)
+
+
+3.4 Country Profiles — Live Configs
+Ghana (GH) — ghana_urban_informal.json
+Locale: en-GH  |  Currency: GHS  |  Context: urban_informal
+Priority sectors: trade, construction, food_services, transport, electronics_repair
+Informality weight: 0.86  |  Zero-credential default: true
+Languages: English, Twi (ak-GH), Ga, Ewe, Hausa
+Constraint profile: bandwidth_tier=low, device_type=feature_phone, shared_device=true, sms_fallback=true
+Evidence types: task_log, peer_attestation, mobile_payment, community_navigator
+Skill alias registry: 13 entries — kayayo (9621), trotro (8322), MoMo (4211), dwadini (4211), chop bar (5120), Makola trader (5220), phone fixer (7421), kiosk (5221)
+Network entry: MTN MoMo SME registry via NBSSI  |  Coordinates: Accra Central
+USSD shortcode: *789#
+
+Armenia (AM) — armenia_urban_informal.json
+Locale: hy-AM  |  Currency: AMD  |  Context: formal_it_mining_tourism (note: implemented as urban_informal)
+Priority sectors: IT, mining, tourism, financial_services, agritech
+Informality weight: 0.34  |  Zero-credential default: false
+Languages: Armenian (hy-AM), Russian, English
+Constraint profile: bandwidth_tier=high, device_type=smartphone, shared_device=false, sms_fallback=false
+Evidence types: formal_credential, task_log, github_commit, certification, assessment_score
+Skill alias registry: 13 entries — Armenian script (ուսուցիչ=teacher, թargh=translator, ծargh=programmer, դerj=tailor) + Russian inflected (переводчик/переводчиком, программист, учитель, портниха)
+Network entry: Gyumri/e-gov.am/Idram  |  USSD: *404#
+
+3.5 Frontend Architecture
+Stack: React 18 + Vite + TypeScript + Tailwind CSS
+Port: 5173 (dev)  |  Proxy: /parse, /api, /health → VITE_API_URL
+Three modes: standalone (VITE_API_URL=http://localhost:8000), docker-compose (VITE_API_URL=http://backend:8000), pure demo (VITE_DEMO_MODE=true)
+API client: 8s AbortController timeout. On abort or ok:false → transparent fallback to bundled mock. 'Live parser' badge shows when real backend responds.
+Offline-first: localStorage cache of last input/locale/result (NB: only for non-PII data — see protocol PII rules)
+ProfileCard layout: header (pseudonym + age + location + meta) → hero row (two econometric signal gradient cards) → two-column body (left: languages, network entry map, ownership statement; right: skills with confidence bars) → constraint tier switcher
+Test suite: Vitest + jsdom + React Testing Library. 8 suites / 25 cases. Covers InputPanel, LocaleSwitcher, ProfileCard, SmsPreview, UssdSimulator, ConstraintTierSwitcher, api fallback, App integration.
+
+3.6 Deployment Stack
+Backend: FastAPI + Uvicorn. Dockerfile: python:3.11-slim + spaCy xx_ent_wiki_sm pre-baked.
+Frontend (dev): node:20-alpine, vite --host 0.0.0.0 --strictPort. Bind-mounted source for hot reload.
+docker-compose.yml: backend (port 8000) + frontend (port 5173) on bridge network 'unmapped'. Frontend depends_on: backend (service_healthy). Backend start_period: 30s for spaCy model warm-up.
+CORS allow-list: localhost:3000, localhost:5173, localhost:8080, frontend:5173 (docker-internal). Override via CORS_ORIGINS env var.
+Tests: 149/149 passing as of v0.3.1. Coverage: test_api (39), test_parser (46), test_multilingual (43), test_bayesian (7), test_taxonomy (6), test_country_profile (8).
+
+
+4. Gap Analysis — What Exists vs What the Brief Requires
+4.1 Module 1 — Skills Signal Engine
+
+
+4.2 Module 2 — AI Readiness & Displacement Risk Lens
+
+
+4.3 Module 3 — Opportunity Matching & Econometric Dashboard
+
+
+4.4 Employer API / Backend Persistence
+The pasted implementation plan (Phase 1 of the next-stage spec) adds a database layer and employer-facing API. This is additive to the existing codebase.
+
+4.5 Country Coverage Gaps
+
+
+5. Next-Phase Implementation Plan
+The pasted document defines a three-phase plan. This section provides the full plan with critical additions and corrections.
+
+Phase 1 — Backend: Database Layer + Employer API (17 Steps)
+
+
+Phase 2 — Employer SPA (Steps 9–14)
+
+
+Phase 3 — Deployment (Steps 15–17)
+
+
+
+6. Critical Gaps, Risks & Design Decisions
+6.1 The Biggest Missing Piece — Real Econometric Data
+
+Current state: compute_wage_signal() and compute_growth_signal() in signals.py use hardcoded wage_bands and growth_channels from the country profile JSON. These are representative values, not fetched from ILOSTAT.
+Required action: Either (a) pre-fetch and bundle the required ILOSTAT/WDI data as static JSON fixtures at build time (acceptable for hackathon — cite sources), or (b) implement an async data fetcher that calls the ILOSTAT API at parse time. Option (a) is strongly recommended for reliability.
+
+6.2 The Biggest Missing Module — Automation Risk (Module 2)
+Module 2 is the differentiating feature of UNMAPPED vs. a generic job board. Without it, the submission answers 'what can Amara do?' but not 'what will happen to her skills by 2035?' — which is the core of the brief's AI disruption requirement.
+Minimum viable M2 for submission: bundle Frey-Osborne scores for the relevant ISCO codes, apply a simple LMIC adjustment factor from ILO Future of Work indices, and surface automation_risk_plain + automation_trajectory_2035 as two additional fields on the ProfileCard. This can be implemented as a new module in signals.py alongside the existing wage/growth signals.
+
+6.3 Missing Policymaker View
+The brief specifically requires a dual interface: one for the youth user, one for a policymaker viewing aggregate signals. Currently only the youth view exists. Without Kwame's dashboard, the submission does not fully satisfy the Module 3 requirement.
+Minimum viable policymaker view: a read-only aggregate page (no individual PII) showing: total profiles by country/sector, average wage scores, automation risk distribution, NEET rate contextualisation. Can be added as a /dashboard route in the employer SPA (Phase 2).
+
+6.4 spaCy Model Size — Docker Image Constraint
+The xx_ent_wiki_sm model is pre-baked in the Docker image. Adding intfloat/multilingual-e5-small (~118 MB) + PyTorch CPU wheel significantly increases image size. The PROJECT_LOG notes a pending audit: confirm total image ≤ 2 GB. If using Railway (Step 17), Railway's free tier has a 512 MB RAM limit — E5-small at inference requires ~300–400 MB RAM. Set UNMAPPED_EMBED_DISABLE=1 for free-tier deployments.
+
+6.5 LocalStorage PII Violation
+The frontend uses localStorage to cache 'last input / locale / result' (mentioned in CHANGELOG alpha.1). The protocol spec Section 5.4 explicitly prohibits localStorage for PII on shared devices. The raw_input IS PII (it's Amara's personal story). This cache must be removed or scoped to non-PII data only (locale preference, last country_code) before production deployment.
+
+6.6 Docker Compose Not Verified End-to-End
+PROJECT_LOG LOG-0003 notes: 'docker compose up --build — NOT executed in this session — Docker Desktop daemon offline.' The full-stack compose has not been verified with a running Docker daemon. This must be the first test when setting up the dev environment.
+
+6.7 BONA Not Implemented
+The protocol spec defines BONA (Bidirectional Opaque Network Auditor) as a cross-cutting forensic layer for network capture detection, ghost listing identification, and programme leakage scoring. BONA is entirely absent from the codebase. It is a design concept in the spec only. For the hackathon demo, the network_entry field in ProfileCard is a simplified stub of BONA's youth-side Network Entry Map function.
+
+6.8 API Contract Versioning — Stability Guarantee
+The docs/api-contract.md states the POST /parse contract is 'stable' as of v0.3.1. However, Module 2 and Module 3 will require additional fields in the ProfileCard response (automation_risk_plain, automation_trajectory, opportunity_count, match_types). These must be added as optional fields only to avoid breaking the existing SPA. Never remove existing fields; only add new optional ones.
+
+
+7. Complete Data Sources Registry
+All sources required by the brief. Sources marked ✅ are referenced in the current codebase (as static config). Sources marked ❌ require integration for full brief compliance.
+
+
+
+8. Vibecoding Session — Recommended Priority Order
+
+Priority 1 — Fix the Real Data Gap (Module 1 Completion)
+Before building anything new, fix the most serious brief compliance gap:
+Create data/ilostat_GH.json and data/ilostat_AM.json: pre-fetched wage and employment growth data from ILOSTAT. Bundle as static JSON. Cite source and year in every response.
+Update signals.py compute_wage_signal() and compute_growth_signal() to load from these JSON files rather than static config values.
+Add data source citation to the Signal.rationale string: 'GHS 38–55/day (ILO ILOSTAT, GHA, 2023)'
+Verify the wage_signal.display_value renders correctly in SignalBar.tsx with currency + period.
+
+Priority 2 — Minimum Viable Module 2 (Automation Risk)
+This is the single highest-impact addition for brief compliance:
+Create data/frey_osborne_isco.json: Frey-Osborne automation probabilities mapped to ISCO-08 codes. Bundle from the published paper's occupation-probability table. Restrict to ISCO codes present in current wage_bands.
+Create data/ilo_task_indices_lmic.json: ILO Future of Work LMIC task-composition adjustment factors. Use these to calibrate raw Frey-Osborne scores for Ghana/Armenia context.
+Add compute_automation_risk() to signals.py: takes ISCO code + country → { automation_probability: 0–1, risk_tier: 'low'|'medium'|'high', trajectory_2035: 'growing'|'stable'|'declining', durable_skills: [], adjacent_skills: [], rationale: string }
+Add automation_risk field to the ProfileCard Pydantic model (optional, so existing SPA doesn't break).
+Add AutomationRisk component to frontend ProfileCard. Show risk tier as coloured badge (🟢 Low / 🟡 Medium / 🔴 High) next to each skill. Show trajectory_2035 as a sentence below the skills list.
+Add Wittgenstein static data: education level projections for GH and AM to 2035. Surface as one sentence: 'By 2035, [X]% of workers in your region are projected to have post-secondary education (Wittgenstein Centre SSP2 scenario).'
+
+Priority 3 — Employer API + DB (Phase 1 from Implementation Plan)
+Follow the 8-step plan exactly as written. Key notes:
+Step 3: The profiles table profile_json column stores the full ProfileCard JSON. The flat indexed columns (wage_score, growth_score) are derived from profile_json.profile.wage_signal.score at insert time.
+Step 5: bcrypt for API key hashing. Use passlib[bcrypt] — already likely in the environment. Do NOT store raw API keys.
+Step 6: The fire-and-forget upsert should use asyncio.create_task(), not await, to avoid blocking the parse response.
+Step 7: The GET /profiles endpoint must NEVER return raw_input — only the indexed summary fields. This protects Amara's PII.
+Step 8: Add startup DB connectivity check that logs a warning but does not prevent the app from starting. The app should be fully functional without a database (stateless mode).
+
+Priority 4 — Minimum Viable Policymaker View
+Add to the employer SPA (Phase 2) as a /dashboard route. Show aggregate data only:
+Total profiles by country (GH / AM bar chart)
+Skill distribution across all profiles (top 10 skills, count each)
+Average wage_score and growth_score by country
+Zero-credential rate (% of profiles with zero_credential=true)
+Automation risk distribution if M2 implemented (% low/medium/high by country)
+NEET rate contextualisation: static value from Data360 for GH and AM with citation
+
+Priority 5 — Additional Country Profiles
+If time allows, add at minimum Nigeria (NG) to demonstrate the three-country localizability claim. Config only — no code changes. Requires: ilostat_NG.json wage data, NG skill alias registry (Hausa + Yoruba + Igbo key terms for key ISCO codes), NG network entry (Lagos/GTBank/LAPO microfinance).
+
+Priority 6 — Phase 2 Employer SPA (Steps 9–14)
+Build after the employer API (Priority 3). The SPA is straightforward React — the employer API contract should be fully defined before starting the SPA to avoid rework.
+
+Priority 7 — Railway Deployment (Phase 3)
+Do last. Requires the database layer and migrations to be stable. Railway's free tier RAM constraint (512 MB) may require UNMAPPED_EMBED_DISABLE=1 in production. Verify this before deploying.
+
+
+9. Key Constants, Limits & Rules
+9.1 Protocol Hard Limits
+
+9.2 Confidence Tier Thresholds
+
+9.3 Supported Countries / Locales
+
+9.4 Environment Variables
+
+
+10. Quick Reference — Commands & Endpoints
+10.1 Local Development
+# Backend
+pip install -r requirements-dev.txt
+python -m spacy download xx_ent_wiki_sm
+uvicorn app.main:app --reload --port 8000
+
+# Frontend
+cd frontend && npm install && npm run dev
+# Runs at http://localhost:5173
+
+# Full stack (Docker)
+docker compose up --build
+# Backend: http://localhost:8000
+# Frontend: http://localhost:5173
+
+# Tests
+pytest tests/ -v --cov=app          # 149 tests
+cd frontend && npm test              # 25 tests
+
+10.2 Key Endpoints
+
+10.3 Canonical Test Vectors
+Amara — Ghana (GH)
+POST /parse
+{
+  "raw_input": "My name is Amara, I fix phones in Accra, speak Twi English Ga,
+                learned coding on YouTube, been fixing phones for 3 years,
+                I have about 20 customers a week",
+  "country": "GH"
+}
+Expected: display_name='Amara A.', skills include Phone Repair (confidence ~0.68, Established) + Software Development. GHS wage signal. Network entry: Accra/MTN MoMo/NBSSI. USSD *789#.
+
+Ani — Armenia (AM)
+POST /parse
+{
+  "raw_input": "Անի եմ, 31 տareks em, Gyumri-um em apes, թarghmanich em,
+                daser em talis, Idram-ov em ashkhatom",
+  "country": "AM"
+}
+Expected: age=31 (Armenian script extracted), skills include Translation + Teaching. AMD wage signal. Network entry: Gyumri/e-gov.am/Idram. USSD *404#.
+
+11. Brief Compliance Checklist
+
+Structural Failure | Description
+BROKEN SIGNALS | Education credentials don't translate into labour market signals. A secondary school certificate tells an employer almost nothing meaningful. Informal skills — phone repair, multilingual communication, mobile money operation — are entirely invisible to formal systems.
+AI DISRUPTION WITHOUT READINESS | Automation is arriving unevenly. Jobs in routine and manual work — disproportionately held by young LMIC workers — face the highest disruption risk. Youth have no tools to understand or navigate this shift.
+NO MATCHING INFRASTRUCTURE | Even where skills and jobs exist in the same place, the connective tissue is absent. Matching happens through informal networks that systematically exclude the most vulnerable youth.
+Name / Age | Amara, 22 — peri-urban Accra, Ghana
+Formal credentials | Secondary school certificate only
+Real skills | Trilingual (Twi, English, Ga), 5 years phone repair business, self-taught coding (YouTube), mobile money operator
+Device | Shared feature phone or entry-level Android — NOT her own device
+Connectivity | 2G/3G intermittent, no data budget, shared connection
+Session length | ≤ 5 minutes typical. Offline-capable required.
+Design principle | Amara is the design constraint, not the edge case. Every output must be readable at secondary-school literacy (Flesch-Kincaid grade ≤ 8), accessible on 2G or offline, usable without any formal credential, and owned and portable by her.
+Name / Role | Kwame, 44 — Senior Program Officer, Ghana Ministry of Employment. $12M skills programme portfolio.
+Device | Desktop browser, reliable internet
+Needs | Aggregate signals — sector-level displacement risk, cohort skill-gap distributions, programme leakage indicators, regional opportunity density. NO individual PII.
+Architecture rule | Policymaker view is architecturally separate. No individual PII crosses into the aggregate dashboard.
+→ Build UNMAPPED — a working prototype of an open, localizable infrastructure layer that closes the distance between a young person's real skills and real economic opportunity. Think protocol, not product. Country-specific parameters must be inputs to your system, not hardcoded assumptions.
+UNMAPPED is a protocol, not a product. It is a thin, stateless transform layer between any Candidate CRM and Employer CRM. Every behaviour that varies by country — taxonomy, language, automation calibration, econometric sources, opportunity types, device constraints — is a pure config input. A single country_profile.json swap reconfigures the entire protocol for a new LMIC context.
+Dimension | UNMAPPED Protocol Behaviour
+Data ownership | Client CRMs own all primary data; protocol is stateless transform layer
+Configurability | Pure config inputs — no code change for any country/language/sector swap
+Vendor lock-in | None — Apache 2.0; any module replaceable; open JSON schemas
+Offline capability | SMS/USSD fallback; compressed output; zero-bandwidth schema defined
+Auditability | All scoring explainable via SHAP; human-readable provenance on every VSS
+Shared-device PII isolation | No localStorage, sessionStorage, or device cache for PII. Profile retrieved via short code only.
+Signal | Description & Status
+Signal 1 (mandatory) | Median sector wage — from ILOSTAT, locale currency, plain language. 'Most workers with similar skills in Accra earn GHS 900–1,400 per month (2023 data, ILO).' ✅ IMPLEMENTED in ProfileCard
+Signal 2 (mandatory) | Sector employment growth (5yr) — from ILOSTAT/WDI/Data360. 'Jobs in this field grew +12% in your region over the last 5 years.' ✅ IMPLEMENTED in ProfileCard
+Signal 3 (recommended) | Automation risk trajectory to 2035 — Wittgenstein + Frey-Osborne LMIC-calibrated. Qualitative tier + direction. ❌ Requires Module 2.
+Signal 4 (recommended) | NEET rate in local area — Data360 Growth & Jobs. '% of young people in your area not in work, school, or training.' ❌ Requires Module 3.
+P1 (policymaker only) | Cohort skill-gap distribution — M3 aggregate. No PII. ❌ Requires Module 3.
+P2 (policymaker only) | Programme leakage index — BONA forensic. ❌ Requires Module 3 + BONA.
+Bandwidth Tier | Protocol Behaviour
+high (WiFi/4G) | Full VSS JSON + Human Layer JSON. Full card: skills bars, icons, wage range, growth chart, connector detail, QR code. All 4 signals rendered.
+medium (3G/variable) | Compressed VSS JSON (gzip). Top 3 skills, wage range, match count, connector name, short code. 2 mandatory signals as plain text.
+low (2G/EDGE) | SMS-schema JSON (≤ 50KB). SMS string ≤ 160 chars. 2 mandatory signals inline. Source cited in short form (ILO).
+offline (USSD/zero-data) | USSD tree JSON. *347*[code]# menu. 5 items. Each ≤ 80 chars. Signals pre-loaded at sync with staleness flag.
+✅ CONFIG-ONLY LOCALIZATION RULE: Zero lines of code change between Ghana and Armenia configs. Structural outputs are schema-identical. Locale-specific field values differ entirely. The E2E locale swap test validates this — output diff must contain only locale-specific fields, never structural fields.
+⚠️ ZERO-CREDENTIAL RULE: Every VSS from zero-credential evidence MUST have confidence_tier of 'Emerging' or 'Likely' — never 'Verified' without at least one formal evidence source. The human-readable explanation must state exactly what evidence was used.
+Field | Specification
+Endpoint | POST http://localhost:8000/parse
+Legacy alias | POST /api/v1/parse  (proxied, still works)
+Content-Type | application/json
+raw_input | string, 3–8000 chars, any language, any encoding
+country | 'GH' | 'AM'  — ISO 3166-1 alpha-2
+language_hint | optional string, ISO 639-1 hint; backend auto-detects
+Field | Description
+profile_id | Deterministic: 'prf-' + first 12 hex of SHA-256(input)
+display_name | 'Amara A.' — first name + last initial (privacy-preserving)
+pseudonym | First name only: 'Amara'
+age | Extracted from text if present; omitted otherwise
+location | Human string: 'Accra, Greater Accra'
+languages | Human-readable: ['English', 'Twi', 'Ga']
+skills[] | Max 8, sorted by confidence desc. Each: { name, confidence: 0–1, evidence? }
+wage_signal | { score: 0–100, rationale: string, display_value: 'GHS 38 / day' }
+growth_signal | { score: 0–100, rationale: string, display_value? }
+network_entry | { channel: string, lat: float, lng: float, label: string }
+sms_summary | string ≤ 160 chars (1 SMS segment)
+ussd_menu | string[] — 4–8 lines, each ≤ 40 chars
+Stage | Description
+Stage 1: Alias Registry | Exact/NFC match against skill_alias_registry in country profile. Covers Twi (kayayo→9621, trotro, MoMo), Ga (chop bar), Armenian script (ուսուցիչ = teacher), Russian inflected forms (переводчик/переводчиком = translator). Longer aliases take priority. Runs first; locks results prevent duplication in later stages.
+Stage 2: Regex patterns | 35 English patterns + 4 Armenian Unicode patterns. Covers phone repair, coding, bookkeeping, teaching, translation, driving, tailoring, farming, etc.
+Stage 3: Multilingual Embedder | intfloat/multilingual-e5-small (~118 MB, 100+ languages). Semantic paraphrase matching. Threshold: 0.74 cosine similarity. Selectable via UNMAPPED_EMBED_MODEL env var. Disabled via UNMAPPED_EMBED_DISABLE=1. Degrades silently to alias+regex if unavailable.
+Stage 4: spaCy Noun-phrase crosswalk | xx_ent_wiki_sm noun chunks → NetworkX ISCO-08/ESCO taxonomy graph. Graceful fallback to pure regex if model unavailable.
+✅ STATUS: COMPLETE. Module 1 is fully implemented and tested. All brief requirements for M1 are satisfied.
+Requirement | Status
+Skills taxonomy (ISCO-08/ESCO/O*NET) | ✅ Implemented — TaxonomyGraph with NetworkX crosswalk
+Zero-credential path | ✅ Implemented — auto-detected from text signals + country_profile.zero_credential_default
+Multilingual support | ✅ Implemented — 4-stage pipeline: alias → regex → E5-small embedder → spaCy NP crosswalk
+Human-readable output | ✅ Implemented — ProfileCard, SMS ≤ 160 chars, USSD menu
+Portable across borders | ✅ Implemented — GH and AM both live; single country_profile.json swap
+Two econometric signals visible | ✅ Implemented — wage_signal + growth_signal in hero row of ProfileCard
+Bayesian confidence scoring | ✅ Implemented — Beta conjugate (no full MCMC; acceptable for MVP)
+Ownership statement | ✅ Implemented — OwnershipStatement component per Section 4.2
+Constraint Layer (SMS/USSD) | ✅ Implemented — ConstraintTierSwitcher, SmsPreview, UssdSimulator
+Offline fallback | ✅ Implemented — 8s timeout + transparent mock fallback
+⚠️ STATUS: NOT IMPLEMENTED. This is Phase 2. The brief requires at least 2 of 3 modules; M1 + M3 would satisfy the requirement, but M2 adds the automation risk differentiator that makes the submission strong.
+Requirement | Status
+Frey-Osborne automation scores | ❌ No integration — data must be bundled or fetched from source
+ILO Future of Work task indices (LMIC calibration) | ❌ No integration — CRITICAL for honest LMIC risk scores
+World Bank STEP microdata | ❌ No integration
+Wittgenstein Centre 2025–2035 projections | ❌ No integration — explicitly required by brief
+Automation risk on profile card | ❌ Not surfaced — brief requires this as visible signal
+Per-occupation risk score + trajectory | ❌ Not calculated
+Adjacent skills recommendation | ❌ Not generated
+⚠️ STATUS: NOT IMPLEMENTED. Currently the signals engine produces wage and growth scores from static config values in signals.py, not live ILOSTAT data. The matching engine (connecting profiles to real opportunities) does not exist.
+Requirement | Status
+Live ILOSTAT wage data | ❌ Static values in signals.py — must be replaced with real data
+ILOSTAT employment growth data | ❌ Static values — must be replaced with real data
+WBES firm-level demand signals | ❌ Not integrated
+Data360 NEET rate | ❌ Not surfaced to user
+Matching engine (VSS → opportunities) | ❌ Does not exist
+Policymaker aggregate dashboard | ❌ Does not exist — Kwame's view is entirely absent
+Dual interface (youth + policymaker) | ❌ Single youth view only
+Opportunity types (formal/informal/gig) | ❌ Not categorised in output
+Component | Status
+Database (PostgreSQL + asyncpg) | ❌ Not implemented — stateless API only
+API key authentication | ❌ Not implemented
+Employer profile browser | ❌ Not implemented
+Employer SPA (port 5174) | ❌ Not implemented
+Profile persistence (profiles table) | ❌ Not implemented
+Alembic migrations | ❌ Not implemented
+Railway deployment config | ❌ Not implemented
+Country/Language | Status
+Ghana (GH) | ✅ Fully live — 13 alias entries, 10+ ISCO codes, GHS wage bands
+Armenia (AM) | ✅ Fully live — Armenian + Russian aliases, AMD wage bands, AM network entry
+Nigeria (NG) | ❌ Config not created — priority for M3 expansion
+Kenya (KE) | ❌ Config not created
+Tanzania (TZ) | ❌ Config not created
+Senegal (SN) | ❌ Config not created
+Ewe (ee-GH) language | ❌ Alias registry not populated
+Hausa (ha) language | ❌ Alias registry not populated
+PURPOSE: Persist parsed profiles, add API key authentication, and expose an employer-facing search API. This enables the Employer CRM side of the protocol architecture.
+Step | Description
+Step 1 — requirements.txt | Add asyncpg>=0.29, sqlalchemy[asyncio]>=2.0.30, alembic>=1.13, python-dotenv>=1.0
+Step 2 — app/db/session.py | SQLAlchemy async engine from DATABASE_URL env var. AsyncSession factory + get_db FastAPI dependency. If DATABASE_URL absent, engine is None — app still starts for worker SPA.
+Step 3 — app/db/models.py | Two tables: profiles (profile_id PK, raw_input, country, parsed_at, profile_json JSONB, plus indexed flat columns: display_name, location, wage_score, growth_score, job_match_score, zero_credential. GIN index on skills JSONB for substring search). api_keys (key_hash bcrypt PK, label, created_at, active bool).
+Step 4 — Alembic | alembic init, point env.py at DATABASE_URL, write versions/0001_initial.py creating both tables
+Step 5 — app/api/auth.py | FastAPI dependency require_api_key: reads X-API-Key header, bcrypt-checks against api_keys, raises HTTP 401 on miss or inactive key
+Step 6 — Persist on parse | app/api/routes.py: after building profile_dict, fire-and-forget async upsert into profiles (ON CONFLICT DO NOTHING). Wrapped in try/except — DB errors never affect the parse response
+Step 7 — app/api/employer.py | Mounted at /api/employer. Requires require_api_key. GET /profiles: query params skill (ilike in JSONB), country, zero_credential, wage_min/max, offset/limit. Returns summaries (no raw_input). GET /profiles/{id}: full profile_json. POST /api-keys: also requires X-Admin-Secret; inserts new key row; returns raw key once.
+Step 8 — app/main.py update | On startup: verify DB connectivity (warn but don't crash if absent). Include employer router. Add localhost:5174 to default CORS origins.
+PURPOSE: A separate React SPA at port 5174 that allows employers/NGOs to browse, search, and view profiles. API-key gated. Read-only. No PII beyond what's in the ProfileCard.
+Step | Description
+Step 9 — Scaffold frontend-employer/ | Copy Vite+React+TS+Tailwind config from frontend/, change name and dev port to 5174, proxy /api/employer/* to backend:8000
+Step 10 — Types | frontend-employer/src/lib/types.ts: ProfileSummary (indexed fields only), ProfileDetail (full ProfileCard shape), ApiState<T> wrapper
+Step 11 — API client | login(key): validates by calling GET /profiles?limit=1, stores key in sessionStorage. getProfiles(filters, page), getProfile(id). Always attaches X-API-Key header.
+Step 12 — Pages | LoginPage.tsx: API key input form, redirect on success. BrowserPage.tsx: filter bar (skill text, country, zero_credential toggle, wage range) + results table. DetailPage.tsx: fetches full profile, renders read-only profile card.
+Step 13 — App shell | Simple client-side routing via window.location. Auth guard: if no key in sessionStorage, redirect to login.
+Step 14 — Employer Dockerfile | Multi-stage: node:20-alpine builds npm ci && npm run build, then nginx:alpine serves /dist. Nginx proxies /api to backend:8000, try_files for SPA routing.
+Step | Description
+Step 15 — docker-compose.yml | Add db service (postgres:16-alpine, health-check on pg_isready, named volume pgdata). Add frontend-employer service. Wire DATABASE_URL into backend. Backend depends_on: db: condition: service_healthy.
+Step 16 — Migration entrypoint | entrypoint.sh: alembic upgrade head && uvicorn app.main:app .... Alembic is idempotent — safe on every redeploy.
+Step 17 — Railway config | railway.toml: three services: backend (root Dockerfile, Railway Postgres plugin injects DATABASE_URL), frontend-employer (employer Dockerfile). Set ADMIN_SECRET and HF_TOKEN as Railway env vars.
+⚠️ IMPORTANT NOTE ON THE IMPLEMENTATION PLAN: The pasted plan is for the Employer API/DB layer only. It does NOT address Module 2 (AI Readiness) or Module 3 (Opportunity Matching) — both of which are required by the brief and absent from the current codebase. Those must be built in parallel or as a subsequent phase.
+🚨 CRITICAL: RISK: The current signals.py uses static wage and growth values embedded in country config, not real ILOSTAT or WDI data. The brief explicitly requires 'real economic data — not synthetic proxies.' This must be addressed before submission.
+Data Source | Integration Status
+ILO ILOSTAT | ✅ Referenced in signals.py static config (wage ranges, growth rates). ❌ Not live-fetched. Required for M1 Signal 1 + Signal 2 + M3 matching.
+World Bank WDI | ❌ Not integrated. Required for M2 macro context + M3 policymaker dashboard.
+World Bank Human Capital Index | ❌ Not integrated. Required for M1 credential-quality calibration.
+ILO ISCO-08 | ✅ Primary taxonomy backbone. Implemented in taxonomy.py.
+ILO Future of Work task indices | ❌ Not integrated. CRITICAL for M2 LMIC calibration of Frey-Osborne scores.
+World Bank STEP microdata | ❌ Not integrated. Required as Bayesian prior for M1 confidence + M2 calibration.
+World Bank WBES | ❌ Not integrated. Required for M3 firm-level demand signals.
+World Bank GLD | ❌ Not integrated. Required for M3 harmonized labour force surveys.
+ILO Employment & Informality Stats | ❌ Not integrated. Required for M3 formal/informal split.
+Wittgenstein Centre 2025–2035 | ❌ Not integrated. Explicitly required by brief for M2 trajectory projections.
+UN Population Projections | ❌ Not integrated. Required for M2 skill-population divergence.
+UNESCO Institute for Statistics | ❌ Not integrated. Required for M2 supply calculation.
+Frey & Osborne automation scores | ❌ Not integrated. Required for M2 base automation probability.
+ITU Digital Development data | ❌ Not integrated. Required for M2 + Constraint Layer auto-calibration.
+Data360 Growth & Jobs | ❌ Not integrated. Required for M3 NEET rate (Signal 4) + informality data.
+B-READY | ❌ Not integrated. Required for BONA forensic sensitivity calibration.
+World Governance Indicators | ❌ Not integrated. Required for BONA ghost listing detection threshold.
+WBG Global Jobs Indicators DB | ❌ Not integrated. Required for M3 policymaker programme benchmarking.
+Women Business & Law 2024 | ❌ Not integrated. Required for M3 gender-adjusted opportunity scoring.
+ESCO Skills Taxonomy v1.2 | ✅ Referenced in taxonomy.py crosswalk graph (ESCO edges).
+O*NET 28.1 | ✅ Referenced in taxonomy.py crosswalk graph (O*NET edges).
+Global Findex Digital Connectivity | ❌ Not integrated. Recommended for mobile money evidence weighting.
+World Bank Enterprise Surveys (WBES) | ❌ Not integrated. Required for M3 firm demand signals.
+→ This section is the action list. What to build, in what order, to maximise hackathon submission quality given limited time.
+Limit | Value
+SMS summary max length | 160 chars (1 SMS segment). Validated in Pydantic model.
+USSD menu lines | 4–8 lines. Each ≤ 40 chars. Validated in Pydantic model.
+Skills per profile | Max 8, min 1. Sorted by confidence descending.
+raw_input length | 3–8000 chars.
+Confidence score range | 0.0–1.0 (Bayesian Beta posterior mean).
+Signal score range | 0–100 integer.
+Session length target | ≤ 5 minutes for Amara persona.
+Data budget target | ≤ 50 KB per session (low bandwidth tier).
+Frontend API timeout | 8 seconds (AbortController). On timeout → mock fallback.
+SMS Flesch-Kincaid target | Grade ≤ 8 (secondary school literacy level).
+Tier | Score Range & Description
+Emerging | 0.0–0.40 — Single weak signal
+Developing | 0.40–0.60 — Self-reported, limited corroboration
+Established | 0.60–0.80 — Multiple consistent signals
+Expert | 0.80–1.0 — High-weight alias match + experience signals
+Code | Profile
+GH — Ghana | en-GH. Urban informal. GHS currency. 2G/feature phone constraint. Zero-credential default: TRUE.
+AM — Armenia | hy-AM. Urban informal / IT. AMD currency. Smartphone. Zero-credential default: FALSE.
+Variable | Description
+VITE_API_URL | Frontend: Vite proxy target (e.g. http://localhost:8000 or http://backend:8000)
+VITE_DEMO_MODE | Frontend: if 'true', skip fetch and use bundled mock always
+CORS_ORIGINS | Backend: comma-separated allow-list. Default includes localhost:5173, localhost:5174
+DATABASE_URL | Backend: PostgreSQL async DSN. If absent, app starts in stateless mode.
+ADMIN_SECRET | Backend: X-Admin-Secret header value for POST /api/employer/api-keys
+UNMAPPED_EMBED_MODEL | Backend: HuggingFace model ID. Default: intfloat/multilingual-e5-small. Production: BAAI/bge-m3
+UNMAPPED_EMBED_DISABLE | Backend: if '1', skip embedder entirely (Stage 3). Use for RAM-constrained deployments.
+HF_TOKEN | Backend: HuggingFace token for model download (required for bge-m3)
+Endpoint | Description
+POST /parse | Primary parse endpoint. Request: {raw_input, country, language_hint?}
+POST /api/v1/parse | Legacy alias — still works, proxied
+GET /health | { status: 'ok', version: '0.3.1', protocol: 'UNMAPPED v0.2' }
+GET /api/employer/profiles | Employer API — list profiles with filters (auth required)
+GET /api/employer/profiles/{id} | Employer API — full profile detail (auth required)
+POST /api/employer/api-keys | Create API key (requires X-Admin-Secret)
+GET /docs | FastAPI Swagger UI
+Brief Requirement | Status
+BR-01: Module 1 — Skills Signal Engine | ✅ COMPLETE
+BR-02: Module 2 — AI Readiness & Displacement Risk | ❌ NOT BUILT — Priority 2
+BR-03: Module 3 — Opportunity Matching & Dashboard | ❌ NOT BUILT — Priority 3+
+BR-04: ≥ 2 modules built | ✅ M1 complete. M2 or M3 needed for brief minimum.
+BR-05: ≥ 2 real econometric signals visible to user | ⚠️ PARTIAL — wage + growth present but use static config, not live ILOSTAT
+BR-06: Profile portable across borders & sectors | ✅ GH + AM both live
+BR-07: Profile explainable to non-expert user | ✅ Human layer renders plain language
+BR-08: Profile usable without credentials | ✅ Zero-credential path implemented
+BR-09: Country-agnostic (no hardcoded country) | ✅ Config-only localization verified
+BR-10: Show tool in 2 contexts / reconfiguration | ✅ GH + AM demo in frontend
+BR-11: Design for constraint (low bandwidth, shared device) | ✅ SMS/USSD/constraint layer implemented
+BR-12: Automation risk LMIC-calibrated | ❌ NOT BUILT
+BR-13: Wittgenstein 2025–2035 projections used | ❌ NOT BUILT
+BR-14: At least one real automation exposure dataset | ❌ NOT BUILT (Frey-Osborne not integrated)
+BR-15: Dual interface (youth + policymaker) | ❌ Policymaker view absent
+BR-16: Localizability demonstrated with evidence | ✅ Two live country configs + locale swap tests
+→ SUMMARY: M1 is strong. The submission currently meets 8 of 16 brief requirements. Adding real ILOSTAT data (Priority 1), minimum M2 automation risk (Priority 2), and a basic policymaker view (Priority 4) would bring compliance to approximately 13–14 of 16.

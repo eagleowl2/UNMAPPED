@@ -104,6 +104,28 @@ const GH_AMARA: ParseResponse = {
       '4. Share to MoMo SME',
       '0. Exit',
     ],
+    automation_risk: {
+      automation_probability: 0.23,
+      raw_probability: 0.41,
+      risk_tier: 'low',
+      trajectory_2035: 'growing',
+      durable_skills: ['right-to-repair diagnostics', 'customer trust'],
+      adjacent_skills: ['IoT diagnostics', 'right-to-repair instruction'],
+      rationale:
+        'Phone Repair: Frey-Osborne raw exposure 41% (SOC 49-2094); ILO LMIC calibration → 23% in GH. Trajectory to 2035: growing. By 2035, 27% of working-age Ghanaians are projected to have post-secondary education (Wittgenstein Centre, SSP2).',
+      sources: [
+        'Frey & Osborne (2017), Oxford Martin School',
+        'ILO Future of Work — LMIC task indices (2018, 2021)',
+        'Wittgenstein Centre Human Capital, SSP2 (2024)',
+      ],
+    },
+    neet_context: {
+      neet_pct: 24.9,
+      narrative:
+        'About 1 in 4 young Ghanaians aged 15–24 is not in work, school, or training (ILO/World Bank, 2022).',
+      source: 'World Bank Data360 / ILO ILOSTAT (SDG 8.6.1)',
+      year: 2022,
+    },
   },
 };
 
@@ -191,6 +213,28 @@ const AM_ANI: ParseResponse = {
       '4. Կիսվել e-gov.am-ի հետ',
       '0. Ելք',
     ],
+    automation_risk: {
+      automation_probability: 0.12,
+      raw_probability: 0.16,
+      risk_tier: 'low',
+      trajectory_2035: 'growing',
+      durable_skills: ['mentorship', 'youth motivation'],
+      adjacent_skills: ['Education-coach mentorship', 'Digital-literacy training'],
+      rationale:
+        'Vocational education teachers: Frey-Osborne raw exposure 16% (SOC 25-1194); ILO LMIC calibration → 12% in AM. Trajectory to 2035: growing. By 2035, 55% of working-age Armenians are projected to have post-secondary education (Wittgenstein Centre, SSP2).',
+      sources: [
+        'Frey & Osborne (2017), Oxford Martin School',
+        'ILO Future of Work — LMIC task indices (2018, 2021)',
+        'Wittgenstein Centre Human Capital, SSP2 (2024)',
+      ],
+    },
+    neet_context: {
+      neet_pct: 31.5,
+      narrative:
+        'About 1 in 3 young Armenians aged 15–24 is not in work, school, or training (ILO/World Bank, 2022) — among the highest rates in Eastern Europe & Central Asia.',
+      source: 'World Bank Data360 / ILO ILOSTAT (SDG 8.6.1)',
+      year: 2022,
+    },
   },
 };
 
