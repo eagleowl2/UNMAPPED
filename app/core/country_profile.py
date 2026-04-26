@@ -22,12 +22,13 @@ _CONFIG_DIR = _ROOT / "config"
 # Registry of known context configs: (country_code, context_tag) -> filename
 _PROFILE_REGISTRY: dict[tuple[str, str], str] = {
     ("GH", "urban_informal"): "ghana_urban_informal.json",
+    ("AM", "urban_informal"): "armenia_urban_informal.json",
 }
 
 
 @lru_cache(maxsize=32)
 def _load_schema() -> dict[str, Any]:
-    with _SCHEMA_PATH.open() as f:
+    with _SCHEMA_PATH.open(encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -61,7 +62,7 @@ def load_country_profile(
     if not config_path.exists():
         raise FileNotFoundError(f"Config file missing: {config_path}")
 
-    with config_path.open() as f:
+    with config_path.open(encoding="utf-8") as f:
         profile = json.load(f)
 
     schema = _load_schema()
@@ -78,7 +79,7 @@ def load_country_profile(
 
 def load_profile_from_path(path: Path) -> dict[str, Any]:
     """Load and validate a country profile from an explicit file path."""
-    with path.open() as f:
+    with path.open(encoding="utf-8") as f:
         profile = json.load(f)
     schema = _load_schema()
     jsonschema.validate(instance=profile, schema=schema)
@@ -95,6 +96,15 @@ def get_sector_tags(profile: dict[str, Any]) -> list[str]:
 
 def get_local_skill_overrides(profile: dict[str, Any]) -> list[dict[str, str]]:
     return profile["taxonomy_config"].get("local_skill_overrides", [])
+
+
+def get_skill_alias_registry(profile: dict[str, Any]) -> list[dict[str, Any]]:
+    """Locale-specific multilingual alias registry (v0.3.1 §4.6.1).
+
+    Each entry: {canonical_label, aliases[], isco_code, category, base_weight?, language?}.
+    Consumed by the parser BEFORE regex / embedding fallbacks.
+    """
+    return profile.get("taxonomy_config", {}).get("skill_alias_registry", [])
 
 
 def get_confidence_priors(profile: dict[str, Any]) -> dict[str, float]:

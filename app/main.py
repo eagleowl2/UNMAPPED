@@ -1,6 +1,12 @@
 """
 UNMAPPED Protocol v0.2 — Skills Signal Engine
 FastAPI application entry point.
+
+Endpoints:
+  POST /parse              — primary SPA endpoint (frontend contract v0.3)
+  POST /api/v1/parse       — legacy alias
+  POST /api/v1/generate_profile_card — explicit card regeneration
+  GET  /health
 """
 from __future__ import annotations
 
@@ -13,7 +19,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import router
+from app.api.routes import public_router, v1_router
 from app.models.schemas import HealthResponse
 
 logging.basicConfig(
@@ -25,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    logger.info("UNMAPPED SSE v0.3-sse-alpha.1 starting up")
+    logger.info("UNMAPPED SSE v0.3.0 starting — GH + AM profiles loaded")
     yield
     logger.info("UNMAPPED SSE shutting down")
 
@@ -33,17 +39,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(
     title="UNMAPPED Skills Signal Engine",
     description=(
-        "UNMAPPED Protocol v0.2 — Module 1: Skills Signal Engine + Evidence Parser.\n\n"
-        "Accepts any unstructured single-field text input and produces Verifiable Skill Signals (VSS) "
-        "with Human Layer output (profile card, SMS, USSD) for LMIC informal economy workers."
+        "UNMAPPED Protocol v0.2 — Module 1: Skills Signal Engine.\n\n"
+        "POST /parse accepts any chaotic free-form text (any language) and returns "
+        "a complete ProfileCard: skills, wage signal, growth signal, network entry, "
+        "SMS summary, and USSD menu. Supports GH (Ghana) and AM (Armenia)."
     ),
-    version="0.3.0-alpha.1",
+    version="0.3.0",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
 )
 
-# CORS — allow SPA (Claude 2 frontend) to call the API
+# CORS — SPA (http://localhost:5173 Vite dev) + production origins
 _CORS_ORIGINS = os.getenv(
     "CORS_ORIGINS",
     "http://localhost:3000,http://localhost:5173,http://localhost:8080",
@@ -57,14 +64,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(router, prefix="/api/v1", tags=["Skills Signal Engine"])
+# Primary public endpoint — SPA calls POST /parse
+app.include_router(public_router, tags=["Skills Signal Engine"])
+
+# Legacy / internal v1 prefix
+app.include_router(v1_router, prefix="/api/v1", tags=["v1 (legacy)"])
 
 
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 async def health() -> dict[str, str]:
     return {
         "status": "ok",
-        "version": "0.3.0-alpha.1",
+        "version": "0.3.0",
         "protocol": "UNMAPPED v0.2",
     }
 
@@ -73,12 +84,13 @@ async def health() -> dict[str, str]:
 async def root() -> JSONResponse:
     return JSONResponse({
         "name": "UNMAPPED Skills Signal Engine",
-        "version": "0.3.0-alpha.1",
+        "version": "0.3.0",
         "protocol": "UNMAPPED v0.2",
         "docs": "/docs",
         "endpoints": {
-            "parse": "POST /api/v1/parse",
-            "generate_vss": "POST /api/v1/generate_vss",
+            "parse": "POST /parse",
+            "parse_legacy": "POST /api/v1/parse",
+            "generate_profile_card": "POST /api/v1/generate_profile_card",
             "health": "GET /health",
         },
     })

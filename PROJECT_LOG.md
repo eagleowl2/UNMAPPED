@@ -7,6 +7,224 @@ Format per Section 12.4 of UNMAPPED Protocol v0.2 spec.
 
 ---
 
+## LOG ENTRY: 2026-04-26 (v0.3.1 — Multilingual SSE Upgrade)
+
+**Entry ID:** `LOG-0003`
+**Version:** `v0.3.1`
+**Branch:** `module/m1-sse`
+**Author:** Claude (Senior Backend Architect — SSE Core)
+**Status:** COMPLETE — 149/149 tests passing, ready for merge to `dev`
+
+---
+
+### 1. Change Type
+`feat` — Multilingual parser upgrade. Adds `skill_alias_registry` (v0.3.1 §4.6.1) to country profiles and schema. Introduces 4-stage extraction pipeline: locale aliases → English/Armenian regex → multilingual embedder (E5-small/BGE-M3) → noun-phrase taxonomy crosswalk. Expands wage bands, growth channels, and network entries for 10 new ISCO codes. Fixes Windows UTF-8 charmap regression on Armenian/Russian input.
+
+---
+
+### 2. Primitives Affected
+
+| Primitive | Action | File |
+|---|---|---|
+| `skill_alias_registry` | ADDED to schema (v0.3.1 §4.6.1) | `schemas/country_profile.json` |
+| `CountryProfile (GH)` | ADDED `skill_alias_registry` (13 entries: Twi/Ga/English) | `config/ghana_urban_informal.json` |
+| `CountryProfile (AM)` | ADDED `skill_alias_registry` (13 entries: Armenian/Russian) | `config/armenia_urban_informal.json` |
+| `MultilingualEmbedder` | ADDED — lazy E5-small / BGE-M3 via env var | `app/core/multilingual.py` |
+| `AliasMatcher` | ADDED — Unicode-NFC case-insensitive alias lookup | `app/core/multilingual.py` |
+| `EvidenceParser` | MODIFIED — 4-stage pipeline, `enable_embedder` flag | `app/core/parser.py` |
+| `WageBands (GH/AM)` | EXTENDED — new codes 4211, 5120, 7112, 7531, 9211, 9621, 2166, 2411, 8322, 5141 | `app/core/signals.py` |
+| `NetworkEntries (GH/AM)` | EXTENDED — entries for all new ISCO codes | `app/core/signals.py` |
+| `country_profile.py` | ADDED `get_skill_alias_registry()` + UTF-8 file open fix | `app/core/country_profile.py` |
+| API version | BUMPED `parser_version` to `sse-0.3.1` | `app/api/routes.py` |
+| Tests | ADDED 43 multilingual tests (Twi, Ga, Armenian, Russian, locale swap) | `tests/test_multilingual.py` |
+
+---
+
+### 3. Summary of Changes
+
+**3.1 skill_alias_registry — primary low-resource path**
+
+Added `skill_alias_registry` block to `schemas/country_profile.json` and both config files. Ghana profile has 13 entries covering Twi (kayayo, trotro, dwadini), Ga colloquial terms (chop bar, kiosk), and English-GH slang (MoMo, Makola trader). Armenia profile has 13 entries covering Armenian script (ուսուցիչ, թարգմանիչ, ծրագրավորող, վարորդ, դերձակ) and Russian inflected forms (переводчик/переводчиком, программист, учитель, портниха).
+
+**3.2 AliasMatcher (`app/core/multilingual.py`)**
+
+Case-insensitive, Unicode-NFC word-bounded regex matching. Longer aliases take priority (sorted descending by length). Returns one `AliasHit` per distinct `canonical_label` — no duplicates. Runs before all other extraction stages.
+
+**3.3 MultilingualEmbedder (`app/core/multilingual.py`)**
+
+Lazy-loaded `intfloat/multilingual-e5-small` (~118 MB, 100+ languages) via raw Hugging Face `transformers.AutoModel` with mean-pool + L2-norm. No `sentence_transformers` dependency. Model selectable via `UNMAPPED_EMBED_MODEL` env var (default: E5-small; production: `BAAI/bge-m3`). Disabled via `UNMAPPED_EMBED_DISABLE=1`. Degrades silently to alias+regex path if unavailable.
+
+**3.4 4-stage extraction pipeline**
+
+`Stage 1` alias_registry (exact/NFC) → `Stage 2` English+Armenian regex → `Stage 3` multilingual embedder (semantic paraphrase, threshold 0.74) → `Stage 4` spaCy noun-phrase taxonomy crosswalk. Each stage skips canonical_labels already locked in by earlier stages to prevent duplication.
+
+**3.5 Extended ISCO coverage**
+
+10 new ISCO codes added to wage bands + network entries for GH and AM: kayayei/porter (9621), mobile-money agent (4211), cook/food-vendor (5120), tailor/seamstress (7531), construction artisan (7112), smallholder farmer (9211), graphic designer (2166), accountant (2411), driver/taxi (8322), hairdresser (5141).
+
+**3.6 Bug fix — Windows UTF-8 encoding**
+
+All `country_profile.py` file opens now pass `encoding="utf-8"` explicitly. Fixes `'charmap' codec can't decode byte 0x81` error that caused Armenia parse to return `{"ok": false}` on Windows when the JSON contains Armenian/Russian Unicode characters.
+
+---
+
+### 4. Tests
+
+- **Regression:** 106 existing tests unchanged — all pass.
+- **New:** 43 multilingual tests in `tests/test_multilingual.py`.
+  - `TestTwiAliasDetection` (5 parametrized + 4 named = 9 tests): kayayo, trotro, MoMo, dwadini, chop-bar, ISCO codes, wage GHS, network entry.
+  - `TestGaAliasDetection` (3 tests): chop bar, phone repair, kiosk.
+  - `TestArmenianAliasDetection` (6 tests): Armenian-script teacher/translator/Idram/programmer, AMD wage, USSD *404#.
+  - `TestRussianAliasDetection` (6 parametrized + 1 named = 7 tests): teacher/translator/programmer/driver/tailor/accountant; AMD wage.
+  - `TestLocaleSwap` (6 tests): GHS vs AMD, USSD codes, network coords differ, zero_credential defaults.
+  - `TestAliasMatcher` (7 unit tests): empty, case-insensitive, Unicode NFC, no-duplicate, longest-wins, Twi kayayo→9621, Russian translator→2643.
+  - `TestCandidatePhrases` (5 tests): English, Armenian, Russian, deduplication, max_words.
+- **Total:** 149/149 passing.
+
+---
+
+### 5. Breaking Changes
+None. `parser_version` bumped to `sse-0.3.1` (informational only — SPA surfaces it in latency display).
+
+---
+
+### 6. Next Steps
+- [ ] Module 2: Job-match signal (connect VSS to live opportunity feeds)
+- [ ] Docker image size audit: confirm `intfloat/multilingual-e5-small` + torch CPU wheel fits ≤ 2 GB
+- [ ] Production: set `UNMAPPED_EMBED_MODEL=BAAI/bge-m3` if GPU available
+- [ ] Extend alias registry: Ewe (ee-GH), Hausa (ha), Tigrinya for future SSA expansions
+
+---
+
+## LOG ENTRY: 2026-04-26 (v0.3.0 — SSE Hardening)
+
+**Entry ID:** `LOG-0002`
+**Version:** `v0.3.0`
+**Branch:** `module/m1-sse`
+**Author:** Claude (Senior Backend Architect — SSE Core)
+**Status:** COMPLETE — 106/106 tests passing, ready for merge to `dev`
+
+---
+
+### 1. Change Type
+`feat` + `fix` — Harden Module 1 SSE to match the frozen frontend API contract; add Armenia (AM) locale; add wage/growth/network-entry signals.
+
+---
+
+### 2. Primitives Affected
+
+| Primitive | Action | File |
+|---|---|---|
+| `ProfileCard` | ADDED (new public response shape) | `app/core/parser.py` |
+| `WageSignal` | ADDED | `app/core/signals.py` |
+| `GrowthSignal` | ADDED | `app/core/signals.py` |
+| `NetworkEntryPoint` | ADDED | `app/core/signals.py` |
+| `CountryProfile (AM)` | ADDED | `config/armenia_urban_informal.json` |
+| `EvidenceParser` | MODIFIED — `parse_for_profile()`, Armenian patterns, `taxonomy_code` | `app/core/parser.py` |
+| API contract | BREAKING CHANGE — request now `raw_input/country`, response now `profile/latency_ms` | `app/api/routes.py`, `app/models/schemas.py` |
+
+---
+
+### 3. Summary of Changes
+
+**3.1 Frontend contract alignment (breaking from v0.3-alpha.1)**
+
+After reading `frontend/src/lib/types.ts`, `frontend/src/lib/api.ts`, and
+`docs/api-contract.md`, the API was completely realigned:
+
+| Field | Old (alpha.1) | New (v0.3.0) |
+|---|---|---|
+| Request key | `text` | `raw_input` |
+| Country key | `country_code` | `country` |
+| Response wrapper | flat `user/skills/vss_list` | `{ok, profile, latency_ms, country, parser_version}` |
+| Skill shape | `label/category/source_phrases` | `name/confidence/evidence` |
+| Location | `{city, country_code}` dict | human string `"Accra, Greater Accra"` |
+| Languages | BCP-47 list `["ak-GH","en"]` | human names `["Twi","English"]` |
+| SMS | `{text, char_count}` object | plain string ≤ 160 chars |
+| USSD | nested tree object | `string[]` ≤ 40 chars/line |
+| New fields | — | `wage_signal`, `growth_signal`, `network_entry`, `pseudonym`, `age`, `profile_id` |
+
+**3.2 Armenia (AM) locale**
+
+Added `config/armenia_urban_informal.json` (AMD currency, Idram rails, e-gov.am
+network entry, hy-AM/ru language support) and registered it in the profile
+registry. Added Armenian Unicode script detection + Armenian-specific skill
+patterns (teaching "դաս", translation "թարգման", Idram mobile money).
+
+**3.3 Signals engine (`app/core/signals.py` — new module)**
+
+- `compute_wage_signal()`: per-country ISCO-08 wage bands → score 0-100 +
+  currency-formatted `display_value` + rationale.
+- `compute_growth_signal()`: ambition keyword scoring + digital/financial
+  skill boosts + experience multiplier → score 0-100 + rationale.
+- `get_network_entry()`: skill taxonomy code → formal-economy entry channel
+  + WGS84 coordinates (GH: Accra/MTN MoMo/NBSSI; AM: Gyumri/e-gov.am/Idram).
+- `detect_age()`: English + Armenian ("31 տարեկան") age extraction.
+- `bcp47_to_human()`: BCP-47 → human-readable language names.
+
+**3.4 Endpoint layout**
+
+- `POST /parse` — primary endpoint (SPA calls `http://localhost:8000/parse`)
+- `POST /api/v1/parse` — legacy alias
+- `POST /api/v1/generate_profile_card` — explicit card regeneration
+
+---
+
+### 4. Test Results
+
+```
+106 passed in 7.18s
+  tests/test_api.py          39 passed  (contract compliance + locale swap)
+  tests/test_parser.py       46 passed  (Amara GH + Ani AM canonical vectors)
+  tests/test_country_profile.py  8 passed
+  tests/test_taxonomy.py      6 passed
+  tests/test_bayesian.py      7 passed
+```
+
+Key test additions:
+- Amara canonical: age=27, bookkeeping, fish trading, mobile money, GHS wage
+- Ani canonical: age=31 (Armenian script), translation, teaching, AMD wage, AM USSD `*404#`
+- Locale swap: GHS vs AMD in wage signal
+- Zero-credential path: self-taught / no formal degree
+- SMS ≤ 160 chars, USSD 4-8 lines each ≤ 40 chars
+- Profile ID deterministic (SHA-256 of input)
+
+---
+
+### 5. Files Modified / Added
+
+```
+app/
+  main.py                    — mount public_router at "/" + v1_router at "/api/v1"
+  api/routes.py              — POST /parse (public), /api/v1/parse, /generate_profile_card
+  core/parser.py             — parse_for_profile(), Armenian patterns, taxonomy_code on skills
+  core/signals.py            NEW — wage/growth signals + network entry + age/language helpers
+  models/schemas.py          — ParseRequest (raw_input/country), ProfileCard, Signal, NetworkEntryPoint
+config/
+  armenia_urban_informal.json  NEW
+tests/
+  test_api.py                — full rewrite for new contract (39 tests)
+  test_parser.py             — full rewrite inc. Ani Armenia story (46 tests)
+docker-compose.yml           — image tag updated to v0.3.0
+```
+
+---
+
+### 6. Breaking Changes
+
+Request shape change from `{text, country_code}` → `{raw_input, country}`.
+Response shape change from flat VSS list → `{ok, profile, latency_ms, country, parser_version}`.
+These break the alpha.1 contract — all clients should migrate to the new shape.
+The `/api/v1/parse` alias accepts the new shape too (no old-shape backward compat).
+
+---
+
+### 7. Rollback Path
+1. `git revert HEAD` (single commit) restores alpha.1 state.
+2. No DB migrations, no persistent state — purely stateless API.
+
+---
+
 ## LOG ENTRY: 2026-04-26
 
 **Entry ID:** `LOG-0004`

@@ -1,5 +1,8 @@
 """
-FastAPI route definitions for the Skills Signal Engine.
+FastAPI routes for the Skills Signal Engine.
+
+Primary endpoint: POST /parse  (matches frontend contract docs/api-contract.md)
+Legacy endpoint:  POST /api/v1/parse (retained for backward compat, same logic)
 """
 from __future__ import annotations
 
@@ -7,150 +10,135 @@ import logging
 import time
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
+from fastapi.responses import JSONResponse
 
 from app.core.parser import EvidenceParser
 from app.models.schemas import (
-    ErrorResponse,
-    GenerateVSSRequest,
+    ParseError,
     ParseRequest,
     ParseResponse,
-    VSSResponse,
+    ProfileCard,
+    HealthResponse,
 )
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
 
-# Parser cache: (country_code, context_tag) → EvidenceParser instance
-_parser_cache: dict[tuple[str, str], EvidenceParser] = {}
+# ---------------------------------------------------------------------------
+# Two routers:
+#   public_router  — mounted at "/" for the /parse endpoint the SPA calls
+#   v1_router      — mounted at "/api/v1" for legacy / internal use
+# ---------------------------------------------------------------------------
+public_router = APIRouter()
+v1_router = APIRouter()
+
+# Parser cache: country_code → EvidenceParser instance
+_parser_cache: dict[str, EvidenceParser] = {}
 
 
-def _get_parser(country_code: str, context_tag: str) -> EvidenceParser:
-    key = (country_code, context_tag)
+def _get_parser(country: str) -> EvidenceParser:
+    key = country.upper()
     if key not in _parser_cache:
         _parser_cache[key] = EvidenceParser(
-            country_code=country_code,
-            context_tag=context_tag,
+            country_code=key,
+            context_tag="urban_informal",
         )
     return _parser_cache[key]
 
 
-@router.post(
+# ---------------------------------------------------------------------------
+# Shared parse logic
+# ---------------------------------------------------------------------------
+
+def _do_parse(req: ParseRequest, t0: float) -> dict[str, Any]:
+    """Execute parse and return the full response dict."""
+    parser = _get_parser(req.country)
+    profile_dict = parser.parse_for_profile(req.raw_input)
+    latency_ms = round((time.perf_counter() - t0) * 1000, 1)
+    return {
+        "ok": True,
+        "profile": profile_dict,
+        "latency_ms": latency_ms,
+        "country": req.country.upper(),
+        "parser_version": "sse-0.3.1",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Primary public endpoint — POST /parse
+# SPA calls: ${API_URL}/parse where API_URL = http://localhost:8000
+# ---------------------------------------------------------------------------
+
+_PARSE_DESCRIPTION = """
+Accept any free-form personal/professional text in any language and return
+a complete ProfileCard with skills, wage signal, growth signal, network entry,
+SMS summary, and USSD menu.
+
+Supports `country: "GH"` (Ghana, English/Twi/Ga) and `country: "AM"` (Armenia, Armenian/Russian).
+
+On any parser error returns `{"ok": false, "error": "...", "code": "..."}` per
+the frontend contract — the SPA falls back to its bundled mock automatically.
+"""
+
+
+@public_router.post(
     "/parse",
-    response_model=ParseResponse,
-    summary="Parse chaotic single-field input",
-    description=(
-        "Accepts one unstructured text input (any language, any format) and returns:\n"
-        "- One USER entity\n"
-        "- One or more SKILL entities\n"
-        "- Full VSS list (one per skill)\n"
-        "- HumanLayer (profile card, SMS ≤160 chars, USSD tree)\n\n"
-        "Zero-credential path is automatically applied for LMIC informal economy contexts."
-    ),
+    summary="Parse chaotic input → ProfileCard",
+    description=_PARSE_DESCRIPTION,
     responses={
-        422: {"model": ErrorResponse, "description": "Validation error"},
-        500: {"model": ErrorResponse, "description": "Parser error"},
+        200: {"description": "ProfileCard produced"},
+        422: {"model": ParseError},
     },
 )
-async def parse_input(body: ParseRequest) -> dict[str, Any]:
-    """Parse chaotic single-field input → USER + SKILL entities → VSS + HumanLayer."""
+async def parse_public(body: ParseRequest) -> JSONResponse:
     t0 = time.perf_counter()
     try:
-        parser = _get_parser(body.country_code, body.context_tag)
-        result = parser.parse(body.text)
+        result = _do_parse(body, t0)
+        return JSONResponse(content=result)
     except FileNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
+        logger.warning("Country profile not found: %s", exc)
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,  # frontend expects 200 on errors too
+            content={"ok": False, "error": str(exc), "code": "UNSUPPORTED_LOCALE"},
+        )
+    except ValueError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"ok": False, "error": str(exc), "code": "PARSER_FAILURE"},
+        )
     except Exception as exc:
-        logger.exception("Parser error for input: %s...", body.text[:80])
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Parser error: {exc}",
-        ) from exc
-
-    elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
-    return {
-        "ok": True,
-        "user": result["user"],
-        "skills": result["skills"],
-        "vss_list": result["vss_list"],
-        "human_layer": result["human_layer"],
-        "meta": {
-            "country_code": body.country_code,
-            "context_tag": body.context_tag,
-            "skills_detected": len(result["skills"]),
-            "processing_time_ms": elapsed_ms,
-            "parser_version": "v0.3-sse-alpha.1",
-        },
-    }
-
-
-@router.post(
-    "/generate_vss",
-    response_model=VSSResponse,
-    summary="Generate VSS from pre-parsed entities",
-    description=(
-        "Takes USER and SKILL entities (from /parse) and regenerates "
-        "VSS list + HumanLayer. Useful for re-scoring or channel-specific rendering."
-    ),
-)
-async def generate_vss(body: GenerateVSSRequest) -> dict[str, Any]:
-    """Regenerate VSS + HumanLayer from existing parsed entities."""
-    t0 = time.perf_counter()
-    try:
-        parser = _get_parser(body.country_code, body.context_tag)
-
-        from app.core.parser import ExtractedUser, ExtractedSkill
-        from datetime import datetime, timezone
-
-        now = datetime.now(timezone.utc).isoformat()
-
-        # Reconstruct ExtractedUser from dict
-        u = body.user
-        user_obj = ExtractedUser(
-            user_id=u.get("user_id", "usr_unknown"),
-            display_name=u.get("display_name"),
-            location=u.get("location", {}),
-            languages=u.get("languages", []),
-            source_text_hash=u.get("source_text_hash", ""),
-            zero_credential=u.get("zero_credential", True),
-            raw_text=u.get("raw_text", ""),
+        logger.exception("Unexpected parser error for country=%s", body.country)
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"ok": False, "error": "Internal parser error", "code": "PARSER_FAILURE"},
         )
 
-        # Reconstruct ExtractedSkill list
-        skill_objs = []
-        for s in body.skills:
-            skill_objs.append(ExtractedSkill(
-                skill_id=s.get("skill_id", "skl_unknown"),
-                label=s.get("label", ""),
-                category=s.get("category", "other"),
-                source_phrases=s.get("source_phrases", [s.get("label", "")]),
-                experience_signals=s.get("experience_signals", []),
-                evidence_weight=s.get("evidence_weight", 0.5),
-                extra_signals=s.get("extra_signals", {}),
-            ))
 
-        vss_list = parser._build_vss_list(user_obj, skill_objs, now)
-        human_layer = parser._build_human_layer(user_obj, vss_list, now)
+# ---------------------------------------------------------------------------
+# Legacy V1 endpoint — POST /api/v1/parse (same logic, kept for backward compat)
+# ---------------------------------------------------------------------------
 
-    except Exception as exc:
-        logger.exception("generate_vss error")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"VSS generation error: {exc}",
-        ) from exc
+@v1_router.post(
+    "/parse",
+    summary="[v1] Parse chaotic input → ProfileCard (legacy path)",
+    include_in_schema=True,
+)
+async def parse_v1(body: ParseRequest) -> JSONResponse:
+    return await parse_public(body)
 
-    elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
-    return {
-        "ok": True,
-        "vss_list": vss_list,
-        "human_layer": human_layer,
-        "meta": {
-            "country_code": body.country_code,
-            "context_tag": body.context_tag,
-            "vss_generated": len(vss_list),
-            "processing_time_ms": elapsed_ms,
-        },
-    }
+
+# ---------------------------------------------------------------------------
+# /generate_profile_card — explicit card regeneration from parsed entities
+# (optional, exposes same logic as /parse for SPA override scenarios)
+# ---------------------------------------------------------------------------
+
+@v1_router.post(
+    "/generate_profile_card",
+    summary="Regenerate ProfileCard from pre-parsed data",
+    description=(
+        "Pass `raw_input` + `country` to force a fresh profile card build. "
+        "Identical to /parse — exists for SPA components that call it separately."
+    ),
+)
+async def generate_profile_card(body: ParseRequest) -> JSONResponse:
+    return await parse_public(body)

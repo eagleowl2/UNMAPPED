@@ -14,7 +14,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: unmapped-backend:v0.3-sse-alpha.3
+    image: unmapped-backend:v0.3.1
     container_name: unmapped_backend
     environment:
       - LOG_LEVEL=INFO
