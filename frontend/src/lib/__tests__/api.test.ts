@@ -1,14 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-/**
- * The api module reads import.meta.env eagerly, so we re-import inside each
- * test after stubbing env. vi.resetModules() ensures a clean read.
- *
- * Since v0.3-sse-alpha.3 the SPA always fetches the relative `/api/v1/parse`
- * URL — the Vite dev-server (or a reverse-proxy) does the forwarding. So the
- * tests no longer assert on absolute URL composition, only on outcomes.
- */
-
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
@@ -17,28 +8,26 @@ afterEach(() => {
 
 const VALID_BODY = {
   ok: true,
-  user: { user_id: 'u1' },
-  skills: [],
-  vss_list: [],
-  human_layer: {
-    hl_id: 'hl_x',
-    schema_version: 'v0.2',
-    created_at: '2026-01-01T00:00:00Z',
-    user_id: 'u1',
-    profile_card: {
-      display_name: 'X',
-      headline: 'Y',
-      location: 'Z',
-      skills_summary: [{ label: 'a', confidence_tier: 'emerging', confidence_score: 0.1 }],
-    },
-    sms_summary: { text: 'hi', char_count: 2 },
-    ussd_tree: { root: { id: 'r', text: 't' } },
+  country: 'GH',
+  parser_version: 'sse-0.3.0',
+  latency_ms: 42,
+  profile: {
+    profile_id: 'gh-test-1',
+    display_name: 'Test',
+    pseudonym: 'Test',
+    location: 'Accra',
+    languages: ['English'],
+    skills: [{ name: 'Phone Repair', confidence: 0.6 }],
+    wage_signal: { score: 50, rationale: 'mid', display_value: 'GHS 30 / day' },
+    growth_signal: { score: 60, rationale: 'ok' },
+    network_entry: { channel: 'MoMo', lat: 5.5, lng: -0.2, label: 'Accra' },
+    sms_summary: 'hi',
+    ussd_menu: ['*789#', '1', '2', '3'],
   },
-  meta: {},
 };
 
 describe('parse() — fetch wrapper', () => {
-  it('returns live result when fetch returns 200 with a ParseResponse body', async () => {
+  it('returns a live result when fetch returns 200 with a ParseResponse body', async () => {
     vi.stubEnv('VITE_DEMO_MODE', 'false');
     const fetchSpy = vi.fn().mockResolvedValue({
       ok: true,
@@ -48,13 +37,11 @@ describe('parse() — fetch wrapper', () => {
     vi.stubGlobal('fetch', fetchSpy);
 
     const { parse } = await import('../api');
-    const out = await parse({ text: 'x', country_code: 'GH', context_tag: 'urban_informal' });
+    const out = await parse({ raw_input: 'x', country: 'GH' });
     expect(out.source).toBe('live');
     expect(out.result.ok).toBe(true);
-
-    // Always relative — the dev-server / proxy decides the target.
     expect(fetchSpy).toHaveBeenCalledWith(
-      '/api/v1/parse',
+      '/parse',
       expect.objectContaining({ method: 'POST' }),
     );
   });
@@ -63,7 +50,7 @@ describe('parse() — fetch wrapper', () => {
     vi.stubEnv('VITE_DEMO_MODE', 'false');
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')));
     const { parse } = await import('../api');
-    const out = await parse({ text: 'amara', country_code: 'GH', context_tag: 'urban_informal' });
+    const out = await parse({ raw_input: 'amara', country: 'GH' });
     expect(out.source).toBe('mock-fallback');
     expect(out.fallbackReason).toBe('network down');
     expect(out.result.ok).toBe(true);
@@ -76,7 +63,7 @@ describe('parse() — fetch wrapper', () => {
       vi.fn().mockResolvedValue({ ok: false, status: 503, json: async () => ({}) }),
     );
     const { parse } = await import('../api');
-    const out = await parse({ text: 'x', country_code: 'GH', context_tag: 'urban_informal' });
+    const out = await parse({ raw_input: 'x', country: 'GH' });
     expect(out.source).toBe('mock-fallback');
     expect(out.fallbackReason).toBe('HTTP 503');
   });
@@ -86,7 +73,7 @@ describe('parse() — fetch wrapper', () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);
     const { parse } = await import('../api');
-    const out = await parse({ text: 'x', country_code: 'GH', context_tag: 'urban_informal' });
+    const out = await parse({ raw_input: 'x', country: 'GH' });
     expect(out.source).toBe('demo');
     expect(fetchSpy).not.toHaveBeenCalled();
   });

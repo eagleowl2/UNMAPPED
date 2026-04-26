@@ -6,27 +6,25 @@ import { LOCALES } from '@/lib/locales';
 import { ghAmara } from '@/test/fixtures';
 
 describe('UssdSimulator', () => {
-  const tree = ghAmara.human_layer.ussd_tree;
+  const menu = ghAmara.profile.ussd_menu;
 
   it('starts in the dial-prompt state', () => {
-    render(<UssdSimulator locale={LOCALES.GH} tree={tree} />);
+    render(<UssdSimulator locale={LOCALES.GH} menu={menu} />);
     expect(screen.getByText(/press “dial \*789#/i)).toBeInTheDocument();
   });
 
-  it('after dialing, shows the root menu and option buttons', async () => {
-    render(<UssdSimulator locale={LOCALES.GH} tree={tree} />);
+  it('after dialing, renders the parser-supplied menu lines', async () => {
+    render(<UssdSimulator locale={LOCALES.GH} menu={menu} />);
     await userEvent.click(screen.getByRole('button', { name: /dial \*789#/i }));
     expect(screen.getByText(/UNMAPPED \*789#/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /1\. View profile/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /2\. Skills/i })).toBeInTheDocument();
+    expect(screen.getByText(/1\. View profile/i)).toBeInTheDocument();
+    expect(screen.getByText(/Wage signal/i)).toBeInTheDocument();
   });
 
-  it('navigates into a child node and back via "0. Back"', async () => {
-    render(<UssdSimulator locale={LOCALES.GH} tree={tree} />);
+  it('hangs up when toggled', async () => {
+    render(<UssdSimulator locale={LOCALES.GH} menu={menu} />);
     await userEvent.click(screen.getByRole('button', { name: /dial \*789#/i }));
-    await userEvent.click(screen.getByRole('button', { name: /1\. View profile/i }));
-    expect(screen.getByText(/Amara, Accra/i)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /^0\. Back/i }));
-    expect(screen.getByRole('button', { name: /1\. View profile/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /hang up/i }));
+    expect(screen.getByText(/press “dial \*789#/i)).toBeInTheDocument();
   });
 });

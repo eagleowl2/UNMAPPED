@@ -8,8 +8,12 @@ const TIMEOUT_MS = 8000;
  * Path the SPA fetches in the browser. Always relative — the Vite dev-server
  * (or a production reverse-proxy) handles forwarding to the backend host. See
  * `vite.config.ts` for the proxy wiring keyed off `VITE_API_URL`.
+ *
+ * Backend canonical route is `POST /parse` since alpha.4. The legacy
+ * `/api/v1/parse` alias is still mounted server-side, but the SPA prefers
+ * the canonical path.
  */
-const PARSE_PATH = '/api/v1/parse';
+const PARSE_PATH = '/parse';
 
 export type ParseSource = 'live' | 'mock-fallback' | 'demo';
 
@@ -22,7 +26,7 @@ export interface ParseOutcome {
 
 export async function parse(req: ParseRequest): Promise<ParseOutcome> {
   if (DEMO_MODE) {
-    return { result: mockParse(req.text, req.country_code), source: 'demo' };
+    return { result: mockParse(req.raw_input, req.country), source: 'demo' };
   }
 
   const controller = new AbortController();
@@ -37,8 +41,10 @@ export async function parse(req: ParseRequest): Promise<ParseOutcome> {
     });
 
     if (!res.ok) {
+      // Backend returns ParseError on validation/parser errors with HTTP 4xx/5xx.
+      // We surface that to the user via mock fallback to keep the demo robust.
       return {
-        result: mockParse(req.text, req.country_code),
+        result: mockParse(req.raw_input, req.country),
         source: 'mock-fallback',
         fallbackReason: `HTTP ${res.status}`,
       };
@@ -48,7 +54,7 @@ export async function parse(req: ParseRequest): Promise<ParseOutcome> {
     return { result: data, source: 'live' };
   } catch (err) {
     return {
-      result: mockParse(req.text, req.country_code),
+      result: mockParse(req.raw_input, req.country),
       source: 'mock-fallback',
       fallbackReason: err instanceof Error ? err.message : 'unknown',
     };

@@ -1,13 +1,13 @@
 import { QRCodeSVG } from 'qrcode.react';
 
 interface Props {
-  hlId: string;
+  profileId: string;
   size?: number;
 }
 
-export function QrSimulation({ hlId, size = 92 }: Props) {
+export function QrSimulation({ profileId, size = 92 }: Props) {
   // Demo URL — replace with verifiable-credential resolver in v0.4.
-  const url = `https://unmapped.demo/hl/${hlId}`;
+  const url = `https://unmapped.demo/p/${profileId}`;
 
   return (
     <div className="flex flex-col items-center gap-1.5">
@@ -18,10 +18,10 @@ export function QrSimulation({ hlId, size = 92 }: Props) {
           bgColor="#ffffff"
           fgColor="#241c13"
           level="M"
-          aria-label={`QR code for human-layer ${hlId}`}
+          aria-label={`QR code for profile ${profileId}`}
         />
       </div>
-      <p className="font-mono text-[10px] text-clay-600">{hlId.slice(0, 14)}…</p>
+      <p className="font-mono text-[10px] text-clay-600">{profileId}</p>
     </div>
   );
 }

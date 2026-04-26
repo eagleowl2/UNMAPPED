@@ -9,6 +9,197 @@ Format per Section 12.4 of UNMAPPED Protocol v0.2 spec.
 
 ## LOG ENTRY: 2026-04-26
 
+**Entry ID:** `LOG-0004`
+**Version:** `v0.3.0-sse-alpha.4`
+**Branch:** `module/m1-sse-ui` (rebased onto `origin/dev`; no manual conflicts)
+**Author:** Claude 2 (frontend / DevOps owner)
+**Status:** COMPLETE — lint + 25/25 tests + build all green; ready for PR to `dev`.
+
+---
+
+### 1. Change Type
+`feat` (canonical Section 4.2 ProfileCard, two econometric signals as
+first-class primitives, AM live) + `chore` (re-align SPA contract to
+backend `module/m1-sse` commit `33e13e4`).
+
+This is technically a **breaking** change for the SPA's internal API
+shape, but the public `POST /parse` contract is now hardened: the SPA
+client matches `app/models/schemas.py` field-for-field.
+
+---
+
+### 2. Primitives Affected
+
+| Primitive | Action | File |
+|---|---|---|
+| `ProfileCard` (Section 4.2) | REBUILT | `frontend/src/components/ProfileCard.tsx` — flat shape with hero row for the two econometric signals |
+| `Signal` (wage + growth) | NEW (re-introduced) | `frontend/src/components/SignalBar.tsx` — gradient hero card variant + inline variant |
+| `Skill` confidence list | NEW | `frontend/src/components/SkillList.tsx` — derives tier label from `Skill.confidence` (0..1) |
+| `NetworkEntryPoint` | UPDATED | `frontend/src/components/NetworkEntryMap.tsx` — accepts `entry` directly, exposes lat/lng caption |
+| `OwnershipStatement` (Section 4.2) | UPDATED | now keys off `profile_id` instead of `hl_id` |
+| Constraint Layer — SMS | SIMPLIFIED | `SmsPreview` now takes a flat `string` message |
+| Constraint Layer — USSD | SIMPLIFIED | `UssdSimulator` now takes a flat `string[]` menu (the recursive tree was removed when the backend reverted to a flat `ussd_menu`) |
+| API client | UPDATED | `frontend/src/lib/api.ts` — endpoint moved from `/api/v1/parse` back to canonical `/parse`; request shape `{raw_input, country, language_hint?}`; response `{ok, profile, latency_ms, country, parser_version}` |
+| Vite proxy | UPDATED | `vite.config.ts` proxies `/parse`, `/api`, and `/health` to `${VITE_API_URL}` |
+| Localization | UPDATED | `LOCALES.AM.backendSupported = true` (Claude 1 shipped `config/armenia_urban_informal.json` in commit `33e13e4`) |
+
+---
+
+### 3. Summary of Changes
+
+Claude 1 hardened the backend `/parse` contract in commit `33e13e4`
+("harden SSE to frontend contract — Armenia locale + signals engine"),
+reverting from the nested `human_layer.profile_card` shape (which had
+been the alpha.2 baseline) to a flat ProfileCard with **explicit
+top-level `wage_signal` and `growth_signal`** — exactly the two
+econometric signals the v0.2 Section 4.2 spec requires. They also
+shipped `config/armenia_urban_informal.json`, making AM a first-class
+country.
+
+This entry brings the SPA back into byte-faithful sync with that
+contract:
+
+- `frontend/src/lib/types.ts` is now a literal mirror of
+  `app/models/schemas.py` (POST /parse).
+- `frontend/src/lib/mock.ts` ships canonical Amara (GH) and Ani (AM)
+  fixtures with full `wage_signal`, `growth_signal`, `network_entry`,
+  flat `sms_summary`, and `ussd_menu` — the SPA renders identically in
+  live and offline-fallback modes.
+- The `ProfileCard` layout follows v0.2 Section 4.2 exactly: header
+  (pseudonym + age + location + parser-source meta), **hero row** with
+  the two econometric signals in side-by-side gradient cards, and a
+  two-column body (left: languages, network-entry map, ownership
+  statement; right: skills with confidence bars).
+- `App.tsx` now sends `{raw_input, country}` and reads the flat shape.
+- The Constraint Tier switcher (Smartphone / SMS / USSD) is unchanged
+  in behaviour but rebuilt against the flat primitives.
+- AM no longer requires the offline fallback — the SPA marks it as
+  `backendSupported: true`.
+
+#### Anti-conflict rule notes
+- `git pull --rebase origin develop` — `develop` does not exist on
+  origin (verified via `git ls-remote --heads origin`); the integration
+  branch is `dev`. Rebased against `origin/dev`; no manual conflicts.
+- New PROJECT_LOG entry placed at the top of the file. All older
+  entries (LOG-0001, LOG-0002, alpha.1, alpha.2) preserved verbatim
+  per the append-only rule. CHANGELOG updated likewise.
+
+---
+
+### 4. Architecture Decisions
+
+**4.1 Hero row for the two econometric signals**
+v0.2 Section 4.2 names wage and growth as the headline primitives of
+the Skills Signal Profile. Promoted them out of the body grid into
+their own gradient row directly under the header — they should be the
+first thing a judge sees.
+
+**4.2 Skill tier derived from confidence on the SPA side**
+The backend returns `Skill.confidence` (0..1) without an explicit tier.
+The SPA derives the tier label (`Emerging` / `Developing` /
+`Established` / `Expert`) from the score using fixed thresholds
+(`< 0.45` / `< 0.65` / `< 0.85` / `≥ 0.85`). Same boundaries the
+backend uses internally per Claude 1's `app/core/bayesian.py`.
+
+**4.3 Vite proxy widened to /parse + /api + /health**
+The canonical backend route moved from `/api/v1/parse` to `/parse` in
+alpha.4. The proxy now forwards both, so existing standalone setups
+that pointed at `/api/v1/parse` keep working.
+
+---
+
+### 5. Files Created/Modified
+
+```
+frontend/src/lib/types.ts                  REWRITTEN (matches schemas.py)
+frontend/src/lib/api.ts                    UPDATED  (endpoint /parse)
+frontend/src/lib/mock.ts                   REWRITTEN (full GH + AM fixtures)
+frontend/src/lib/locales.ts                UPDATED  (AM backendSupported=true)
+frontend/src/components/ProfileCard.tsx    REBUILT  (Section 4.2 layout)
+frontend/src/components/SignalBar.tsx      REBUILT  (hero + inline variants)
+frontend/src/components/SkillList.tsx      NEW      (tier-derived bars)
+frontend/src/components/NetworkEntryMap.tsx UPDATED (accepts entry directly)
+frontend/src/components/SmsPreview.tsx     UPDATED  (flat string message)
+frontend/src/components/UssdSimulator.tsx  UPDATED  (flat string[] menu)
+frontend/src/components/OwnershipStatement.tsx UPDATED (profile_id)
+frontend/src/App.tsx                       UPDATED  (new request shape)
+frontend/vite.config.ts                    UPDATED  (proxy /parse + /api + /health)
+frontend/package.json                      UPDATED  (version 0.3.0-sse-alpha.4)
+frontend/src/test/fixtures.ts              UPDATED
+frontend/src/lib/__tests__/api.test.ts     UPDATED  (new request shape)
+frontend/src/components/__tests__/{ProfileCard,SmsPreview,UssdSimulator}.test.tsx UPDATED
+frontend/src/__tests__/App.test.tsx        UPDATED  (asserts on Wage/Growth headings)
+```
+
+---
+
+### 6. Backward Compatibility
+
+- The `POST /parse` contract is now stable and shared with backend
+  (`module/m1-sse@33e13e4`). The SPA does not retain support for the
+  alpha.2 nested shape because no production consumer exists.
+- Vite proxy still forwards the legacy `/api/v1/parse` route, so any
+  pre-existing standalone curl/Postman tests against that path
+  continue to work end-to-end through the dev server.
+- `VITE_API_URL` semantic continues to be "Vite proxy target", as set
+  in alpha.3.
+
+---
+
+### 7. Test Plan
+
+```bash
+# Frontend (verified locally in this session)
+cd frontend && npm install && npm run lint && npm test && npm run build
+#   lint     — clean
+#   test     — 8 suites · 25 cases · all passing
+#   build    — 182 KB JS / 60 KB gz · 4 KB CSS gz · ~3s
+
+# Backend (Claude 1)
+pytest tests/ -v --cov=app
+#   Includes test_parser.py canonical Amara vector and AM coverage
+#   in tests/test_parser.py + tests/test_api.py.
+
+# Full-stack (NOT executed in this session — Docker Desktop offline)
+docker compose up --build
+#   Expected:
+#     - http://localhost:5173        — SPA, "Try the Amara story" → submit
+#     - http://localhost:8000/parse  — POST returns full ProfileCard
+#     - http://localhost:8000/health — {"status":"ok",...}
+#     - "Live parser" badge with real backend latency_ms / parser_version
+```
+
+---
+
+### 8. Rollback Path
+1. `git revert <alpha.4 head>` — restores alpha.3 SPA (nested shape +
+   recursive USSD navigator).
+2. The compose stack is fully stateless; rollback is safe at any time.
+
+---
+
+### 9. Notes for Reviewers / Claude 1
+
+- The SPA is now strictly downstream of `app/models/schemas.py`. If
+  the backend changes any field there, the matching change must land
+  on this branch in the same PR cycle.
+- `frontend/src/lib/mock.ts` doubles as a golden fixture set. Backend
+  tests in `tests/test_parser.py` should produce shape-equivalent
+  output for the canonical Amara story.
+- Two open backend follow-ups (not blocking for the demo):
+  1. Wire `network_entry` for AM through `app/core/signals.py` against
+     actual Yerevan/Gyumri pin coordinates.
+  2. The `/api/v1/parse` legacy alias can be removed once nothing
+     external depends on it.
+
+---
+
+*End of LOG-0004*
+
+---
+
+## LOG ENTRY: 2026-04-26
+
 **Entry ID:** `LOG-0003`
 **Version:** `v0.3.0-sse-alpha.3`
 **Branch:** `module/m1-sse-ui` (rebased onto `origin/dev`)

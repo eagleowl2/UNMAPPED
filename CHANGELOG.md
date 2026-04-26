@@ -7,6 +7,59 @@ All notable changes to UNMAPPED follow [Semantic Versioning](https://semver.org/
 
 ---
 
+## [0.3.0-sse-alpha.4] — 2026-04-26
+
+### Branch: `module/m1-sse-ui` (rebased onto `origin/dev`)
+
+### Added
+- **Two econometric signals as first-class primitives** —
+  `wage_signal` and `growth_signal` are now rendered in a hero row
+  directly under the profile-card header, in side-by-side gradient
+  cards (Section 4.2). Each shows score `/100`, optional currency
+  display value (e.g. `GHS 38 / day`), and a one-sentence rationale.
+- **`SkillList`** — confidence-bar list with a tier label
+  (`Emerging` / `Developing` / `Established` / `Expert`) derived from
+  the 0..1 score on the SPA side, matching backend Bayesian thresholds.
+- **Armenia is live** — `LOCALES.AM.backendSupported = true`. The
+  backend ships `config/armenia_urban_informal.json` since
+  `module/m1-sse@33e13e4`; AM no longer needs the offline fallback.
+
+### Changed
+- **Realigned to the canonical `POST /parse` contract** authored by
+  Claude 1 in commit `33e13e4`. The SPA `types.ts` is now a
+  byte-faithful mirror of `app/models/schemas.py`:
+  - Endpoint: `/api/v1/parse` → `/parse` (the v1 alias is still
+    proxied for backward compat).
+  - Request: `{text, country_code, context_tag}` →
+    `{raw_input, country, language_hint?}`.
+  - Response: nested `{user, skills, vss_list, human_layer, meta}` →
+    flat `{ok, profile, latency_ms, country, parser_version}`.
+- **`ProfileCard` layout** rebuilt to match v0.2 Section 4.2 exactly:
+  pseudonym header → econometric-signals hero row → two-column body
+  (left: languages / network-entry map / ownership statement; right:
+  skills with confidence bars).
+- **`UssdSimulator`** simplified back to a flat `string[]` menu (the
+  recursive tree from alpha.2 is removed; backend reverted to a flat
+  `ussd_menu` array).
+- **`SmsPreview`** takes a plain string `message` again.
+- **Vite proxy** widened to forward `/parse`, `/api`, and `/health`
+  to `${VITE_API_URL}` — the canonical and legacy routes both work.
+- **`frontend/package.json` version** → `0.3.0-sse-alpha.4`.
+
+### Verified locally
+- `npm run lint` — clean (`tsc --noEmit`).
+- `npm test` — 8 suites / 25 cases / all passing.
+- `npm run build` — 182 KB JS / 60 KB gz · 4 KB CSS gz · ~3 s.
+
+### Backward compatibility
+- The internal SPA shape is breaking against alpha.3, but no
+  production consumer exists — the public `/parse` contract is now
+  the stable baseline shared with backend.
+- Standalone setups using the legacy `/api/v1/parse` route continue
+  to work end-to-end through the Vite dev-server proxy.
+
+---
+
 ## [0.3.0-sse-alpha.3] — 2026-04-26
 
 ### Branch: `module/m1-sse-ui` (rebased onto `origin/dev`)

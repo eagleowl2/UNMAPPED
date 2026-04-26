@@ -1,6 +1,6 @@
 interface Props {
   pseudonym: string;
-  hlId: string;
+  profileId: string;
 }
 
 /**
@@ -8,7 +8,7 @@ interface Props {
  * portable, revocable, and never silently shared. This component renders
  * that promise visibly inside the profile card.
  */
-export function OwnershipStatement({ pseudonym, hlId }: Props) {
+export function OwnershipStatement({ pseudonym, profileId }: Props) {
   return (
     <aside
       aria-label="Ownership and control"
@@ -22,7 +22,7 @@ export function OwnershipStatement({ pseudonym, hlId }: Props) {
         formal economy. Shareable only with the holder&rsquo;s consent — and revocable at
         any time.
       </p>
-      <p className="mt-1 font-mono text-[10px] text-clay-500">{hlId}</p>
+      <p className="mt-1 font-mono text-[10px] text-clay-500">{profileId}</p>
     </aside>
   );
 }

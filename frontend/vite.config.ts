@@ -31,13 +31,13 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       host: true,
       strictPort: true,
+      // Forward both the canonical /parse route (alpha.4+) and the legacy
+      // /api/v1 alias to the backend service.
       proxy: proxyTarget
         ? {
-            '/api': {
-              target: proxyTarget,
-              changeOrigin: true,
-              secure: false,
-            },
+            '/parse': { target: proxyTarget, changeOrigin: true, secure: false },
+            '/api': { target: proxyTarget, changeOrigin: true, secure: false },
+            '/health': { target: proxyTarget, changeOrigin: true, secure: false },
           }
         : undefined,
     },

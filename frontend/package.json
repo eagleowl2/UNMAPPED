@@ -1,7 +1,7 @@
 {
   "name": "unmapped-frontend",
   "private": true,
-  "version": "0.3.0-sse-alpha.2",
+  "version": "0.3.0-sse-alpha.4",
   "type": "module",
   "description": "UNMAPPED Protocol — Skills Signal Engine SPA (Human + Constraint Layer demo).",
   "scripts": {

@@ -24,7 +24,9 @@ describe('App — full input → profile flow', () => {
     await waitFor(() =>
       expect(screen.getByRole('heading', { level: 2, name: /Amara/i })).toBeInTheDocument(),
     );
-    expect(screen.getByText(/Phone Repair & Software Development/i)).toBeInTheDocument();
+    // The two econometric signals are rendered as headings in the hero row
+    expect(screen.getByRole('heading', { name: /wage signal/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /growth signal/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /smartphone/i })).toHaveAttribute(
       'aria-selected',
       'true',

@@ -1,10 +1,12 @@
 /**
- * Canonical types for UNMAPPED Protocol v0.3-sse-alpha.2.
+ * Canonical types for UNMAPPED Protocol v0.3-sse-alpha.4.
  *
- * Source of truth: backend module/m1-sse — `app/models/schemas.py` and the JSON
- * Schemas under `/schemas`. This file MUST stay in lock-step with that branch;
- * any contract change requires a SemVer bump + matching update on both sides
- * per Section 12.1.
+ * Source of truth: backend `module/m1-sse` — `app/models/schemas.py`.
+ * Claude 1 (commit 33e13e4) hardened the contract to a flat ProfileCard
+ * with explicit `wage_signal` + `growth_signal` (the "2 econometric signals"
+ * the v0.2 spec requires). Armenia is now a first-class country.
+ *
+ * Endpoint: POST /parse  (the legacy /api/v1/parse alias is also kept).
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -13,158 +15,60 @@
 
 export type CountryCode = 'GH' | 'AM';
 
-export type ContextTag = 'urban_informal' | 'rural_subsistence' | string;
-
 export interface ParseRequest {
-  /** Any unstructured personal/professional text. min 3, max 5000 chars. */
-  text: string;
-  /** ISO 3166-1 alpha-2; backend currently ships GH, AM falls back to mock. */
-  country_code: CountryCode;
-  /** Context tag matching a loaded country profile. */
-  context_tag: ContextTag;
+  raw_input: string;
+  country: CountryCode;
+  language_hint?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Response — VSS (Verifiable Skill Signal)
+// Response sub-models
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type ConfidenceTier = 'emerging' | 'developing' | 'established' | 'expert';
-
-export type SkillCategory =
-  | 'technical'
-  | 'digital'
-  | 'trade'
-  | 'agricultural'
-  | 'care'
-  | 'creative'
-  | 'managerial'
-  | 'language'
-  | 'financial'
-  | 'other';
-
-export interface UserEntity {
-  user_id: string;
-  display_name?: string;
-  location?: {
-    country_code?: string;
-    city?: string;
-    context_tag?: string;
-  };
-  languages?: string[];
-  source_text_hash?: string;
-  zero_credential?: boolean;
+export interface Skill {
+  name: string;
+  /** 0..1 — backend Bayesian posterior. */
+  confidence: number;
+  /** Optional evidence span pulled from the raw input. */
+  evidence?: string;
 }
 
-export interface SkillEntity {
-  skill_id: string;
+/**
+ * Signal — a 0..100 normalized econometric signal with a short rationale.
+ * Wage and growth share this shape.
+ */
+export interface Signal {
+  score: number;
+  rationale: string;
+  /** Currency-formatted wage, e.g. "GHS 38 / day". Wage signal only. */
+  display_value?: string;
+}
+
+export interface NetworkEntryPoint {
+  /** Where in the formal economy this profile most-naturally enters. */
+  channel: string;
+  /** WGS84 lat/lng for the map pin (best-effort, may be approximate). */
+  lat: number;
+  lng: number;
+  /** Short label rendered next to the pin. */
   label: string;
-  label_local?: string;
-  category: SkillCategory;
-  subcategory?: string;
-  source_phrases: string[];
-  experience_signals?: string[];
-  /** Surfaced flat from VSS for convenience. */
-  confidence_score?: number;
 }
 
-export interface TaxonomyEntry {
-  framework: string;
-  code: string;
-  label: string;
-  match_score?: number;
-}
-
-export interface VerifiableSkillSignal {
-  vss_id: string;
-  schema_version: string;
-  user: UserEntity;
-  skill: SkillEntity;
-  evidence_chain: Array<{
-    evidence_type:
-      | 'self_report'
-      | 'peer_endorsement'
-      | 'transaction_record'
-      | 'digital_footprint'
-      | 'formal_credential'
-      | 'community_attestation';
-    raw_signal: string;
-    normalized_signal?: string;
-    weight: number;
-  }>;
-  confidence: {
-    score: number; // 0..1
-    lower_95?: number;
-    upper_95?: number;
-    alpha?: number;
-    beta?: number;
-    method: 'bayesian_beta' | 'rule_based' | 'ml_classifier';
-    tier: ConfidenceTier;
-  };
-  taxonomy_crosswalk: {
-    primary: TaxonomyEntry;
-    secondary?: TaxonomyEntry[];
-  };
-  country_code?: string;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Response — Human Layer
-// ─────────────────────────────────────────────────────────────────────────────
-
-export interface SkillSummaryEntry {
-  label: string;
-  confidence_tier: ConfidenceTier;
-  confidence_score: number; // 0..1
-  taxonomy_code?: string;
-  category?: string;
-}
-
-export interface ProfileCardData {
+export interface ProfileCard {
+  profile_id: string;
   display_name: string;
-  headline: string;
+  pseudonym: string;
+  age?: number;
   location: string;
-  languages?: string[];
-  skills_summary: SkillSummaryEntry[];
-  zero_credential_badge?: boolean;
-  top_skill?: string;
-  bio_snippet?: string;
-  /** Backend-rendered HTML — NOT injected by the SPA (XSS posture); the SPA
-   *  renders structured fields itself. */
-  rendered_html?: string;
-}
-
-export interface SmsSummaryData {
-  text: string; // ≤ 160 chars
-  char_count: number;
-  language?: string;
-}
-
-export interface UssdNode {
-  id: string;
-  text: string; // ≤ 182 chars
-  input_type?: 'none' | 'numeric' | 'text';
-  is_terminal?: boolean;
-  options?: Array<{
-    key: string;
-    label: string;
-    next: UssdNode;
-  }>;
-}
-
-export interface UssdTree {
-  root: UssdNode;
-  session_timeout_sec?: number;
-}
-
-export interface HumanLayer {
-  hl_id: string;
-  schema_version: string;
-  created_at: string;
-  user_id: string;
-  vss_ids?: string[];
-  profile_card: ProfileCardData;
-  sms_summary: SmsSummaryData;
-  ussd_tree: UssdTree;
+  languages: string[];
+  skills: Skill[];
+  wage_signal: Signal;
+  growth_signal: Signal;
+  network_entry: NetworkEntryPoint;
+  /** ≤ 320 chars; backend targets ≤ 160 (one SMS segment). */
+  sms_summary: string;
+  /** 4..8 lines, ≤ 40 visible chars each. */
+  ussd_menu: string[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -173,23 +77,17 @@ export interface HumanLayer {
 
 export interface ParseResponse {
   ok: true;
-  user: UserEntity;
-  skills: SkillEntity[];
-  vss_list: VerifiableSkillSignal[];
-  human_layer: HumanLayer;
-  meta: {
-    country_code?: string;
-    context_tag?: string;
-    skills_detected?: number;
-    processing_time_ms?: number;
-    parser_version?: string;
-  };
+  profile: ProfileCard;
+  /** Backend-measured parse time in ms. */
+  latency_ms: number;
+  country: CountryCode;
+  parser_version: string;
 }
 
 export interface ParseError {
   ok: false;
   error: string;
-  detail?: string;
+  code?: string;
 }
 
 export type ParseResult = ParseResponse | ParseError;

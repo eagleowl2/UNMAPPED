@@ -33,9 +33,8 @@ export function App() {
     setError(null);
     try {
       const { result, source: src } = await parse({
-        text: input,
-        country_code: country,
-        context_tag: locale.context_tag,
+        raw_input: input,
+        country,
       });
       if (result.ok) {
         setData(result);
@@ -49,7 +48,7 @@ export function App() {
     } finally {
       setLoading(false);
     }
-  }, [input, country, locale.context_tag, loading]);
+  }, [input, country, loading]);
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
@@ -100,17 +99,17 @@ function TierView({
   tier: ConstraintTier;
 }) {
   if (tier === 'sms') {
-    return <SmsPreview locale={locale} sms={data.human_layer.sms_summary} emphasized />;
+    return <SmsPreview locale={locale} message={data.profile.sms_summary} emphasized />;
   }
   if (tier === 'ussd') {
-    return <UssdSimulator locale={locale} tree={data.human_layer.ussd_tree} emphasized />;
+    return <UssdSimulator locale={locale} menu={data.profile.ussd_menu} emphasized />;
   }
   return (
     <>
       <ProfileCard locale={locale} data={data} source={source} />
       <div className="grid gap-4 sm:grid-cols-2">
-        <SmsPreview locale={locale} sms={data.human_layer.sms_summary} />
-        <UssdSimulator locale={locale} tree={data.human_layer.ussd_tree} />
+        <SmsPreview locale={locale} message={data.profile.sms_summary} />
+        <UssdSimulator locale={locale} menu={data.profile.ussd_menu} />
       </div>
     </>
   );
@@ -133,9 +132,9 @@ function Header({
           Skills Signal Engine
         </h1>
         <p className="mt-1 max-w-xl text-sm text-clay-700">
-          Paste a chaotic story in any language. Get a portable Verifiable
-          Skill Signal that works on a smartphone, a feature phone, and the
-          formal economy.
+          Paste a chaotic story in any language. Get a portable profile with
+          two econometric signals — wage and growth — that work on a smartphone,
+          a feature phone, and the formal economy.
         </p>
       </div>
       <LocaleSwitcher value={country} onChange={setCountry} />
@@ -161,7 +160,7 @@ function EmptyState() {
 function Footer() {
   return (
     <footer className="mt-12 border-t border-clay-200/70 pt-4 text-center text-xs text-clay-600">
-      v0.3.0-sse-alpha.2 · UNMAPPED Protocol · Hackathon demo · Built for low-bandwidth users
+      v0.3.0-sse-alpha.4 · UNMAPPED Protocol · Hackathon demo · Built for low-bandwidth users
     </footer>
   );
 }
