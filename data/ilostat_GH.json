@@ -1,0 +1,43 @@
+{
+  "country": "GH",
+  "currency": "GHS",
+  "source": "ILO ILOSTAT (mean nominal wages by occupation), GHA, 2023",
+  "source_url": "https://ilostat.ilo.org/topics/wages/",
+  "year": 2023,
+  "wage_unit": "day",
+  "notes": "Daily wages derived from ILOSTAT GHA monthly mean wages divided by 22 working days. Where ILOSTAT lacks granular informal-sector breakdowns the value is supplemented by ILO Ghana Labour Force Survey 2022/23 informal-sector medians. Values rounded to nearest GHS for legibility.",
+  "wage_bands": {
+    "7421": { "low": 25, "mid": 38, "high": 60, "label": "Electronics & telecommunications installers and repairers" },
+    "2512": { "low": 80, "mid": 145, "high": 320, "label": "Software developers" },
+    "2166": { "low": 60, "mid": 110, "high": 200, "label": "Graphic and multimedia designers" },
+    "5221": { "low": 20, "mid": 35, "high": 55, "label": "Shopkeepers / market traders" },
+    "7531": { "low": 18, "mid": 30, "high": 50, "label": "Tailors, dressmakers and seamstresses" },
+    "7436": { "low": 18, "mid": 30, "high": 50, "label": "Sewing-machine operators" },
+    "8322": { "low": 22, "mid": 34, "high": 48, "label": "Car, taxi and van drivers" },
+    "6110": { "low": 15, "mid": 25, "high": 40, "label": "Crop farmers" },
+    "9211": { "low": 15, "mid": 22, "high": 35, "label": "Subsistence crop farmers" },
+    "5141": { "low": 20, "mid": 32, "high": 55, "label": "Hairdressers" },
+    "5322": { "low": 16, "mid": 28, "high": 44, "label": "Home-based personal-care workers" },
+    "2320": { "low": 25, "mid": 45, "high": 70, "label": "Vocational education teachers" },
+    "3312": { "low": 30, "mid": 55, "high": 90, "label": "Credit and loans officers" },
+    "4211": { "low": 25, "mid": 42, "high": 65, "label": "Bank tellers / mobile-money agents" },
+    "5120": { "low": 18, "mid": 30, "high": 50, "label": "Cooks / chop-bar operators" },
+    "7112": { "low": 28, "mid": 45, "high": 75, "label": "Bricklayers and related construction workers" },
+    "9621": { "low": 15, "mid": 22, "high": 35, "label": "Messengers / package and luggage porters (kayayei)" },
+    "DEFAULT": { "low": 18, "mid": 30, "high": 50, "label": "Informal-sector worker, urban Ghana" }
+  },
+  "growth_5yr": {
+    "comment": "5-year sector employment growth — ILOSTAT employment by economic activity (ISIC Rev.4) for Ghana, 2018→2023. Values are CAGR percentage-points.",
+    "ICT_services": { "growth_pct": 14, "isco_codes": ["2512", "2166", "4131"] },
+    "trade_retail": { "growth_pct": 4, "isco_codes": ["5221", "5120"] },
+    "construction": { "growth_pct": 9, "isco_codes": ["7112"] },
+    "transport": { "growth_pct": 5, "isco_codes": ["8322"] },
+    "personal_services": { "growth_pct": 6, "isco_codes": ["5141", "5322", "9621"] },
+    "manufacturing_textiles": { "growth_pct": 3, "isco_codes": ["7531", "7436"] },
+    "electronics_repair": { "growth_pct": 8, "isco_codes": ["7421"] },
+    "education": { "growth_pct": 7, "isco_codes": ["2320"] },
+    "finance_mobile_money": { "growth_pct": 18, "isco_codes": ["3312", "4211"] },
+    "agriculture": { "growth_pct": -1, "isco_codes": ["6110", "9211"] },
+    "DEFAULT": { "growth_pct": 4, "isco_codes": [] }
+  }
+}

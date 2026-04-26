@@ -24,6 +24,7 @@ services:
     volumes:
       - ./config:/app/config:ro
       - ./schemas:/app/schemas:ro
+      - ./data:/app/data:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]

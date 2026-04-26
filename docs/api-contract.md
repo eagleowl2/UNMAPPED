@@ -1,4 +1,4 @@
-# UNMAPPED `/parse` API Contract — v0.3.1
+# UNMAPPED `/parse` API Contract — v0.3.2
 
 **Status:** Current. Matches `app/models/schemas.py` (backend) and
 `frontend/src/lib/types.ts` (frontend) exactly.
@@ -7,6 +7,11 @@
 > 1. SemVer bump in both `app/main.py` and `frontend/package.json`
 > 2. Matching schema update on both sides of the wire
 > 3. A `PROJECT_LOG.md` entry on the affected branch
+
+> **Stability rule:** Optional fields may be added; existing fields may
+> never be removed or renamed. v0.3.2 added `automation_risk` and
+> `neet_context` as **optional** fields — older SPA versions render
+> unchanged when they ignore them.
 
 ---
 
@@ -62,11 +67,33 @@ interface ProfileCard {
   location: string;             // Human string: "Accra, Greater Accra"
   languages: string[];          // Human-readable: ["English", "Twi", "Ga"]
   skills: Skill[];              // Max 8, sorted descending by confidence
-  wage_signal: Signal;
-  growth_signal: Signal;
+  wage_signal: Signal;          // Cited rationale (ILO ILOSTAT) — Signal 1
+  growth_signal: Signal;        // 5yr CAGR rationale (ILO ILOSTAT) — Signal 2
   network_entry: NetworkEntryPoint;
   sms_summary: string;          // ≤ 160 chars (1 SMS segment)
   ussd_menu: string[];          // 4–8 lines, each ≤ 40 chars
+  automation_risk?: AutomationRisk;   // Module 2 — Signal 3 (added in v0.3.2)
+  neet_context?: NeetContext;          // Module 3 — Signal 4 (added in v0.3.2)
+}
+
+interface AutomationRisk {
+  /** LMIC-adjusted automation probability for the top occupation [0..1]. */
+  automation_probability: number;
+  /** Raw US-context Frey-Osborne probability before LMIC calibration [0..1]. */
+  raw_probability: number;
+  risk_tier: 'low' | 'medium' | 'high';
+  trajectory_2035: 'growing' | 'stable' | 'declining';
+  durable_skills: string[];     // human-edge skills retained
+  adjacent_skills: string[];    // skills to grow into
+  rationale: string;            // cites Frey-Osborne + ILO + Wittgenstein
+  sources: string[];
+}
+
+interface NeetContext {
+  neet_pct: number;             // % youth (15–24) NEET — SDG 8.6.1
+  narrative: string;
+  source: string;
+  year: number;
 }
 
 interface Skill {
@@ -159,10 +186,42 @@ GET /health → { status: "ok", version: "0.3.1", protocol: "UNMAPPED v0.2" }
 
 ---
 
-## 10. Changelog
+## 10. Bundled econometric data (`/data`)
+
+Wage, growth, and automation-risk signals are sourced from JSON fixtures
+in `data/`, each citing its source. Loaders live in `app/core/data_sources.py`.
+
+| File | Purpose | Source |
+|---|---|---|
+| `ilostat_GH.json` | GH wage bands + 5yr sector growth | ILO ILOSTAT (2023) |
+| `ilostat_AM.json` | AM wage bands + 5yr sector growth | ILO ILOSTAT / Armstat (2023) |
+| `frey_osborne_isco.json` | Raw automation probability per ISCO-08 | Frey & Osborne (2017) |
+| `ilo_lmic_adjustment.json` | LMIC calibration factor (country × ISCO) | ILO Future of Work (2018, 2021) |
+| `wittgenstein_2035.json` | Post-secondary attainment 2025→2035 | Wittgenstein Centre SSP2 (2024) |
+| `data360_neet.json` | Youth NEET rate (SDG 8.6.1) | World Bank Data360 / ILOSTAT |
+
+The `/parse` response cites these sources verbatim in `wage_signal.rationale`,
+`growth_signal.rationale`, and `automation_risk.rationale` / `.sources`.
+
+---
+
+## 11. Privacy — localStorage prohibition (Protocol §5.4)
+
+The SPA **MUST NOT** persist `raw_input` or `ParseResponse` to
+`localStorage` on shared devices. Both contain PII (name, age, location,
+free-text personal narrative). The SPA persists only the locale
+preference (`'GH' | 'AM'`), which is non-personal configuration.
+
+This is enforced in `frontend/src/lib/storage.ts`. Any v3 PII keys left
+over from earlier installs are wiped on first load.
+
+---
+
+## 12. Changelog
 
 | Version | Change |
 |---------|--------|
+| v0.3.2 | Module 2 — automation risk (Frey-Osborne × ILO × Wittgenstein); NEET context; ILOSTAT data fixtures + cited rationale; localStorage PII purge |
 | v0.3.1 | `skill_alias_registry` pipeline; E5-small embedder; 10 new ISCO codes |
 | v0.3.0 | Full ProfileCard contract; Armenia locale; wage/growth/network signals |
 | v0.3-alpha.1 | Initial SSE contract (`text`/`country_code` — **deprecated**) |

@@ -60,7 +60,7 @@ def _do_parse(req: ParseRequest, t0: float) -> dict[str, Any]:
         "profile": profile_dict,
         "latency_ms": latency_ms,
         "country": req.country.upper(),
-        "parser_version": "sse-0.3.1",
+        "parser_version": "sse-0.3.2",
     }
 
 

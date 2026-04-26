@@ -54,6 +54,36 @@ export interface NetworkEntryPoint {
   label: string;
 }
 
+export type AutomationRiskTier = 'low' | 'medium' | 'high';
+export type AutomationTrajectory = 'growing' | 'stable' | 'declining';
+
+/**
+ * Module 2 — AI Readiness & Displacement Risk Lens. LMIC-calibrated.
+ * Optional on the wire so older SPA versions render unchanged when the
+ * backend doesn't ship M2.
+ */
+export interface AutomationRisk {
+  /** LMIC-adjusted probability the top occupation is automated [0..1]. */
+  automation_probability: number;
+  /** Raw Frey-Osborne probability before LMIC calibration [0..1]. */
+  raw_probability: number;
+  risk_tier: AutomationRiskTier;
+  trajectory_2035: AutomationTrajectory;
+  durable_skills: string[];
+  adjacent_skills: string[];
+  rationale: string;
+  sources: string[];
+}
+
+/** Data360 / ILOSTAT NEET rate — Signal 4 from the brief's signal hierarchy. */
+export interface NeetContext {
+  /** % of youth (15–24) not in employment, education, or training. */
+  neet_pct: number;
+  narrative: string;
+  source: string;
+  year: number;
+}
+
 export interface ProfileCard {
   profile_id: string;
   display_name: string;
@@ -69,6 +99,10 @@ export interface ProfileCard {
   sms_summary: string;
   /** 4..8 lines, ≤ 40 visible chars each. */
   ussd_menu: string[];
+  /** Module 2 — present when the backend ships v0.3.2+ automation risk. */
+  automation_risk?: AutomationRisk;
+  /** Module 3 (partial) — NEET rate context for the user's country. */
+  neet_context?: NeetContext;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

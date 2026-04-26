@@ -15,16 +15,18 @@ export function App() {
     const saved = storage.loadLocale();
     return saved === 'GH' || saved === 'AM' ? saved : DEFAULT_LOCALE;
   });
-  const [input, setInput] = useState<string>(() => storage.loadInput());
+  // Per protocol §5.4 / Master Context §6.5: raw_input and the parse
+  // result are PII. They are NEVER persisted to localStorage. Both live
+  // only in component state and are cleared on tab close / refresh.
+  const [input, setInput] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<ParseResponse | null>(() => storage.loadResult());
+  const [data, setData] = useState<ParseResponse | null>(null);
   const [source, setSource] = useState<ParseSource>('live');
   const [tier, setTier] = useState<ConstraintTier>('smartphone');
 
   const locale = useMemo(() => LOCALES[country], [country]);
 
-  useEffect(() => storage.saveInput(input), [input]);
   useEffect(() => storage.saveLocale(country), [country]);
 
   const handleSubmit = useCallback(async () => {
@@ -39,7 +41,6 @@ export function App() {
       if (result.ok) {
         setData(result);
         setSource(src);
-        storage.saveResult(result);
       } else {
         setError(result.error);
       }
@@ -72,7 +73,7 @@ export function App() {
           </div>
         )}
 
-        {data ? (
+        {data?.profile?.sms_summary ? (
           <>
             <ConstraintTierSwitcher value={tier} onChange={setTier} />
             <TierView locale={locale} data={data} source={source} tier={tier} />

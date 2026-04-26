@@ -64,6 +64,31 @@ class NetworkEntryPoint(BaseModel):
     label: str
 
 
+class AutomationRisk(BaseModel):
+    """Module 2 — AI Readiness & Displacement Risk Lens (LMIC-calibrated).
+
+    Combines Frey & Osborne (2017) raw automation probability for the top
+    occupation with an ILO Future-of-Work LMIC adjustment factor. Rationale
+    cites every source used.
+    """
+    automation_probability: float = Field(ge=0.0, le=1.0)
+    raw_probability: float = Field(ge=0.0, le=1.0)
+    risk_tier: Literal["low", "medium", "high"]
+    trajectory_2035: Literal["growing", "stable", "declining"]
+    durable_skills: list[str] = Field(default_factory=list, max_length=6)
+    adjacent_skills: list[str] = Field(default_factory=list, max_length=6)
+    rationale: str
+    sources: list[str] = Field(default_factory=list)
+
+
+class NeetContext(BaseModel):
+    """Data360 / ILOSTAT NEET rate (Signal 4) for the user's country."""
+    neet_pct: float = Field(ge=0.0, le=100.0)
+    narrative: str
+    source: str
+    year: int
+
+
 class ProfileCard(BaseModel):
     profile_id: str
     display_name: str
@@ -77,6 +102,10 @@ class ProfileCard(BaseModel):
     network_entry: NetworkEntryPoint
     sms_summary: str = Field(max_length=320)
     ussd_menu: list[str] = Field(min_length=4, max_length=8)
+    # v0.3.2 — Module 2 (automation risk) and Signal 4 (NEET) — optional so
+    # existing SPA versions render unchanged.
+    automation_risk: Optional[AutomationRisk] = None
+    neet_context: Optional[NeetContext] = None
 
 
 class ParseResponse(BaseModel):

@@ -1,0 +1,31 @@
+{
+  "source": "Frey & Osborne (2017) — The Future of Employment: How Susceptible are Jobs to Computerisation? — Oxford Martin School. Probabilities mapped from US SOC to ISCO-08 via published O*NET ↔ SOC ↔ ISCO crosswalk.",
+  "source_url": "https://www.oxfordmartin.ox.ac.uk/downloads/academic/future-of-employment.pdf",
+  "year": 2017,
+  "method": "Original Frey-Osborne automation probabilities (raw) for the closest matched SOC occupation per ISCO-08 code. These are *unadjusted* US-context scores; LMIC calibration is applied separately via data/ilo_lmic_adjustment.json.",
+  "probabilities": {
+    "2512": { "p_raw": 0.42, "label": "Software developers", "soc_match": "15-1252" },
+    "2166": { "p_raw": 0.55, "label": "Graphic and multimedia designers", "soc_match": "27-1024" },
+    "2320": { "p_raw": 0.16, "label": "Vocational education teachers", "soc_match": "25-1194" },
+    "2411": { "p_raw": 0.94, "label": "Accountants", "soc_match": "13-2011" },
+    "2512_data_entry": { "p_raw": 0.96, "label": "Data entry keyers", "soc_match": "43-9021" },
+    "2643": { "p_raw": 0.38, "label": "Translators and interpreters", "soc_match": "27-3091" },
+    "3312": { "p_raw": 0.98, "label": "Credit and loans officers", "soc_match": "13-2072" },
+    "3431": { "p_raw": 0.50, "label": "Photographers", "soc_match": "27-4021" },
+    "4131": { "p_raw": 0.81, "label": "Word processors / typists", "soc_match": "43-9022" },
+    "4211": { "p_raw": 0.98, "label": "Bank tellers / cashiers", "soc_match": "41-2011" },
+    "5120": { "p_raw": 0.10, "label": "Cooks", "soc_match": "35-2014" },
+    "5141": { "p_raw": 0.11, "label": "Hairdressers", "soc_match": "39-5012" },
+    "5221": { "p_raw": 0.97, "label": "Shopkeepers / cashiers", "soc_match": "41-2031" },
+    "5322": { "p_raw": 0.11, "label": "Home-based personal-care workers", "soc_match": "39-9021" },
+    "6110": { "p_raw": 0.87, "label": "Crop farmers", "soc_match": "45-2092" },
+    "7112": { "p_raw": 0.64, "label": "Bricklayers and related construction workers", "soc_match": "47-2021" },
+    "7421": { "p_raw": 0.41, "label": "Electronics repair technicians", "soc_match": "49-2094" },
+    "7436": { "p_raw": 0.89, "label": "Sewing-machine operators", "soc_match": "51-6031" },
+    "7531": { "p_raw": 0.84, "label": "Tailors and dressmakers", "soc_match": "51-6052" },
+    "8322": { "p_raw": 0.89, "label": "Car, taxi and van drivers", "soc_match": "53-3041" },
+    "9211": { "p_raw": 0.87, "label": "Subsistence crop farmers", "soc_match": "45-2092" },
+    "9621": { "p_raw": 0.40, "label": "Messengers / package and luggage porters", "soc_match": "43-5021" },
+    "DEFAULT": { "p_raw": 0.50, "label": "Unmatched occupation — assumed median exposure", "soc_match": null }
+  }
+}
