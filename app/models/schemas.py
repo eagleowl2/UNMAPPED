@@ -87,6 +87,24 @@ class NeetContext(BaseModel):
     narrative: str
     source: str
     year: int
+class OpportunityEntry(BaseModel):
+    title: str
+    employer_type: str
+    channel: str
+    lat: float
+    lng: float
+    label: str
+    wage_range: str
+    isco_code: str
+    formalization_path: str
+    match_score: float = Field(ge=0.0, le=1.0)
+
+
+class JobMatchSignal(BaseModel):
+    score: int = Field(ge=0, le=100)
+    rationale: str
+    opportunity_count: int
+    matched_opportunities: list[OpportunityEntry]
 
 
 class ProfileCard(BaseModel):
@@ -99,6 +117,7 @@ class ProfileCard(BaseModel):
     skills: list[Skill] = Field(min_length=1, max_length=8)
     wage_signal: Signal
     growth_signal: Signal
+    job_match: Optional[JobMatchSignal] = None
     network_entry: NetworkEntryPoint
     sms_summary: str = Field(max_length=320)
     ussd_menu: list[str] = Field(min_length=4, max_length=8)

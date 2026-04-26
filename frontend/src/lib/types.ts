@@ -94,6 +94,7 @@ export interface ProfileCard {
   skills: Skill[];
   wage_signal: Signal;
   growth_signal: Signal;
+  job_match?: JobMatchSignal;
   network_entry: NetworkEntryPoint;
   /** ≤ 320 chars; backend targets ≤ 160 (one SMS segment). */
   sms_summary: string;

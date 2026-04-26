@@ -118,3 +118,8 @@ def get_confidence_priors(profile: dict[str, Any]) -> dict[str, float]:
 
 def is_zero_credential_context(profile: dict[str, Any]) -> bool:
     return profile["informal_economy"].get("zero_credential_default", False)
+
+
+def get_opportunity_catalog(profile: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return the opportunity catalog for BONA-style job-match scoring (v0.4.0)."""
+    return profile.get("opportunity_catalog", [])
