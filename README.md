@@ -46,7 +46,6 @@ Every behaviour that varies by country (taxonomy, language, automation calibrati
 
 ## High-Level Architecture
 
-```mermaid
 graph TD
     A[Candidate CRM<br/>(NGO / Govt / School)] 
     B[UNMAPPED Protocol Layer<br/>v0.2 — Stateless Transform]
