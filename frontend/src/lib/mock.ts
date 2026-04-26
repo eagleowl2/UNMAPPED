@@ -3,17 +3,16 @@ import type { CountryCode, ParseResponse } from './types';
 /**
  * Bundled offline parser used when:
  *   - VITE_DEMO_MODE=true (deliberate, e.g. flaky-wifi pitch)
- *   - the backend /parse call fails (network / 5xx / timeout)
+ *   - the backend /parse call fails (network / 4xx / 5xx / timeout)
  *
- * Heuristics are intentionally simple: we surface what the user actually typed
- * back to them so the demo never feels canned. The real intelligence lives in
- * Claude 1's parser.
+ * Shape mirrors Claude 1's hardened ProfileCard contract (commit 33e13e4)
+ * exactly, so the SPA renders identically in live and fallback modes.
  */
 
-const GH_SAMPLE: ParseResponse = {
+const GH_AMARA: ParseResponse = {
   ok: true,
   country: 'GH',
-  parser_version: 'mock-0.3.0',
+  parser_version: 'mock-0.3.0-alpha.4',
   latency_ms: 240,
   profile: {
     profile_id: 'gh-amara-001',
@@ -21,46 +20,46 @@ const GH_SAMPLE: ParseResponse = {
     pseudonym: 'Amara',
     age: 27,
     location: 'Accra, Greater Accra',
-    languages: ['English', 'Twi'],
+    languages: ['English', 'Twi', 'Ga'],
     skills: [
-      { name: 'Smoked-fish trading', confidence: 0.92, evidence: 'Makola 3 days/week' },
-      { name: 'Hair braiding', confidence: 0.88 },
-      { name: 'Bookkeeping (manual ledger)', confidence: 0.74, evidence: 'learned from aunt' },
-      { name: 'Mobile money (Vodafone Cash)', confidence: 0.81 },
+      { name: 'Phone Repair', confidence: 0.68, evidence: 'fix phones in Accra · 3 years · 20 customers/wk' },
+      { name: 'Software Development', confidence: 0.52, evidence: 'learned coding on YouTube' },
+      { name: 'Mobile money (Vodafone Cash)', confidence: 0.74 },
     ],
     wage_signal: {
       score: 64,
       display_value: 'GHS 38 / day',
-      rationale: 'Daily-wage band typical for Makola fresh-market vendors with own stock.',
+      rationale:
+        'Daily-wage band typical for Accra electronics-repair specialists with sustained customer volume (~20/wk).',
     },
     growth_signal: {
       score: 78,
       rationale:
-        'Stated ambition (frozen-fish stall) + active ledger + mobile-money rails = high formalization potential.',
+        'Multi-skill stack (repair + software + mobile-money) on a zero-credential profile — high formalisation upside via SME onboarding.',
     },
     network_entry: {
       channel: 'Mobile-money cooperative onboarding (Vodafone Cash → MTN MoMo SME)',
       lat: 5.5502,
       lng: -0.2174,
-      label: 'Makola Market',
+      label: 'Makola, Accra',
     },
     sms_summary:
-      'UNMAPPED: Amara, 27, Accra. Trader+braider, ledger, VodafoneCash. Wage 64/100 Growth 78/100. Reply 1 for SME plan.',
+      'UNMAPPED:Amara, Accra | Phone Repair 68%, Software 52%, MoMo 74% | Wage 64/100 Growth 78/100 | Reply 1 for SME plan',
     ussd_menu: [
       'UNMAPPED *789#',
-      '1. View my profile',
+      '1. View profile',
       '2. Wage signal: 64/100',
       '3. Growth signal: 78/100',
-      '4. Share to MTN MoMo SME',
+      '4. Share to MoMo SME',
       '0. Exit',
     ],
   },
 };
 
-const AM_SAMPLE: ParseResponse = {
+const AM_ANI: ParseResponse = {
   ok: true,
   country: 'AM',
-  parser_version: 'mock-0.3.0',
+  parser_version: 'mock-0.3.0-alpha.4',
   latency_ms: 220,
   profile: {
     profile_id: 'am-ani-001',
@@ -70,19 +69,20 @@ const AM_SAMPLE: ParseResponse = {
     location: 'Gyumri, Shirak',
     languages: ['Armenian', 'Russian', 'English'],
     skills: [
-      { name: 'English tutoring', confidence: 0.93, evidence: 'home lessons' },
-      { name: 'Translation (EN/RU/HY)', confidence: 0.85, evidence: 'small companies, weekly' },
+      { name: 'English Tutoring', confidence: 0.74, evidence: 'home lessons' },
+      { name: 'Translation (HY/RU/EN)', confidence: 0.62, evidence: 'weekly small-business contracts' },
       { name: 'Digital payments (Idram)', confidence: 0.78 },
     ],
     wage_signal: {
       score: 71,
       display_value: 'AMD 4 500 / hr',
-      rationale: 'In-line with regional private-tutor rates; multi-client diversification adds floor.',
+      rationale:
+        'Aligned with regional private-tutor rates; multi-client diversification adds an income floor.',
     },
     growth_signal: {
       score: 82,
       rationale:
-        'Studio ambition + multilingual stack + Idram rail makes EduTech micro-formalization viable.',
+        'Multilingual EduTech stack + Idram rail → micro-formalisation viable through e-gov.am sole-prop registration.',
     },
     network_entry: {
       channel: 'Sole-proprietor e-registration via e-gov.am + Idram for-business',
@@ -91,7 +91,7 @@ const AM_SAMPLE: ParseResponse = {
       label: 'Gyumri',
     },
     sms_summary:
-      'UNMAPPED: Ani, 31, Gyumri. Tutor+translator, Idram. Wage 71/100 Growth 82/100. Reply 1 for studio plan.',
+      'UNMAPPED:Ani, Gyumri | EN tutor 74%, Translator 62%, Idram 78% | Wage 71/100 Growth 82/100 | Reply 1 for studio plan',
     ussd_menu: [
       'UNMAPPED *404#',
       '1. Իմ պրոֆիլը',
@@ -104,17 +104,19 @@ const AM_SAMPLE: ParseResponse = {
 };
 
 export function mockParse(rawInput: string, country: CountryCode): ParseResponse {
-  const base = country === 'GH' ? GH_SAMPLE : AM_SAMPLE;
-  if (!rawInput.trim()) return base;
-
-  // Tiny gesture so the user sees their words reflected — keeps the demo honest.
-  const echoed = rawInput.trim().slice(0, 80);
+  const base = country === 'GH' ? GH_AMARA : AM_ANI;
+  const echoed = rawInput.trim().slice(0, 60);
+  if (!echoed) return base;
   return {
     ...base,
     latency_ms: 180 + Math.floor(Math.random() * 120),
     profile: {
       ...base.profile,
-      sms_summary: `${base.profile.sms_summary.slice(0, 80)} | "${echoed}"`.slice(0, 320),
+      sms_summary: clampSms(`${base.profile.sms_summary} | "${echoed}"`),
     },
   };
+}
+
+function clampSms(s: string): string {
+  return s.length > 320 ? `${s.slice(0, 319)}…` : s;
 }

@@ -1,34 +1,31 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ConstraintTierSwitcher, type ConstraintTier } from './components/ConstraintTierSwitcher';
 import { InputPanel } from './components/InputPanel';
 import { LocaleSwitcher } from './components/LocaleSwitcher';
 import { ProfileCard } from './components/ProfileCard';
 import { SmsPreview } from './components/SmsPreview';
 import { UssdSimulator } from './components/UssdSimulator';
 import { parse, type ParseSource } from './lib/api';
-import { DEFAULT_LOCALE, LOCALES } from './lib/locales';
+import { DEFAULT_LOCALE, LOCALES, type LocaleConfig } from './lib/locales';
 import { storage } from './lib/storage';
 import type { CountryCode, ParseResponse } from './lib/types';
 
 export function App() {
   const [country, setCountry] = useState<CountryCode>(() => {
     const saved = storage.loadLocale();
-    return (saved as CountryCode) || DEFAULT_LOCALE;
+    return saved === 'GH' || saved === 'AM' ? saved : DEFAULT_LOCALE;
   });
   const [input, setInput] = useState<string>(() => storage.loadInput());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ParseResponse | null>(() => storage.loadResult());
   const [source, setSource] = useState<ParseSource>('live');
+  const [tier, setTier] = useState<ConstraintTier>('smartphone');
 
   const locale = useMemo(() => LOCALES[country], [country]);
 
-  // Persist input + locale as the user types / switches.
-  useEffect(() => {
-    storage.saveInput(input);
-  }, [input]);
-  useEffect(() => {
-    storage.saveLocale(country);
-  }, [country]);
+  useEffect(() => storage.saveInput(input), [input]);
+  useEffect(() => storage.saveLocale(country), [country]);
 
   const handleSubmit = useCallback(async () => {
     if (!input.trim() || loading) return;
@@ -77,11 +74,8 @@ export function App() {
 
         {data ? (
           <>
-            <ProfileCard locale={locale} data={data} source={source} />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <SmsPreview locale={locale} message={data.profile.sms_summary} />
-              <UssdSimulator locale={locale} menu={data.profile.ussd_menu} />
-            </div>
+            <ConstraintTierSwitcher value={tier} onChange={setTier} />
+            <TierView locale={locale} data={data} source={source} tier={tier} />
           </>
         ) : (
           <EmptyState />
@@ -90,6 +84,34 @@ export function App() {
 
       <Footer />
     </div>
+  );
+}
+
+function TierView({
+  locale,
+  data,
+  source,
+  tier,
+}: {
+  locale: LocaleConfig;
+  data: ParseResponse;
+  source: ParseSource;
+  tier: ConstraintTier;
+}) {
+  if (tier === 'sms') {
+    return <SmsPreview locale={locale} message={data.profile.sms_summary} emphasized />;
+  }
+  if (tier === 'ussd') {
+    return <UssdSimulator locale={locale} menu={data.profile.ussd_menu} emphasized />;
+  }
+  return (
+    <>
+      <ProfileCard locale={locale} data={data} source={source} />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <SmsPreview locale={locale} message={data.profile.sms_summary} />
+        <UssdSimulator locale={locale} menu={data.profile.ussd_menu} />
+      </div>
+    </>
   );
 }
 
@@ -110,8 +132,9 @@ function Header({
           Skills Signal Engine
         </h1>
         <p className="mt-1 max-w-xl text-sm text-clay-700">
-          Paste a chaotic story in any language. Get a portable profile that
-          works on a smartphone, a feature phone, and the formal economy.
+          Paste a chaotic story in any language. Get a portable profile with
+          two econometric signals — wage and growth — that work on a smartphone,
+          a feature phone, and the formal economy.
         </p>
       </div>
       <LocaleSwitcher value={country} onChange={setCountry} />
@@ -137,7 +160,7 @@ function EmptyState() {
 function Footer() {
   return (
     <footer className="mt-12 border-t border-clay-200/70 pt-4 text-center text-xs text-clay-600">
-      v0.3-sse-alpha.1 · UNMAPPED Protocol · Hackathon demo · Built for low-bandwidth users
+      v0.3.0-sse-alpha.4 · UNMAPPED Protocol · Hackathon demo · Built for low-bandwidth users
     </footer>
   );
 }

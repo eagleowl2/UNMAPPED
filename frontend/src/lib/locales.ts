@@ -8,11 +8,9 @@ export interface LocaleConfig {
   primaryLanguages: string[];
   ussdShortcode: string;
   smsSender: string;
-  /** Bbox center for the network-entry map. */
-  mapCenter: { lat: number; lng: number; zoomLabel: string };
-  /** Placeholder prompt rendered in the input textarea. */
+  /** True if backend ships a country_profile for this locale. */
+  backendSupported: boolean;
   placeholder: string;
-  /** Sample chaotic input button label. */
   sampleLabel: string;
   sample: string;
 }
@@ -26,14 +24,14 @@ export const LOCALES: Record<CountryCode, LocaleConfig> = {
     primaryLanguages: ['English', 'Twi', 'Ga'],
     ussdShortcode: '*789#',
     smsSender: 'UNMAPPED',
-    mapCenter: { lat: 5.56, lng: -0.2, zoomLabel: 'Greater Accra' },
+    backendSupported: true,
     placeholder:
       'Tell us about yourself in any language — what you do, where, what you have learned…',
-    sampleLabel: 'Try a Ghana sample',
+    sampleLabel: 'Try the Amara story',
+    // Canonical Amara story — matches the backend's test_parser.py vector.
     sample:
-      'I am Amara, 27, I sell smoked fish at Makola three days a week and braid hair on the other days. ' +
-      'I learned book-keeping from my aunt and I keep my own ledger in a notebook. I have a Vodafone Cash account. ' +
-      'I want to start a small frozen-fish stall.',
+      'My name is Amara, I fix phones in Accra, speak Twi English Ga, learned coding on YouTube, ' +
+      'been fixing phones for 3 years, I have about 20 customers a week.',
   },
   AM: {
     code: 'AM',
@@ -43,10 +41,11 @@ export const LOCALES: Record<CountryCode, LocaleConfig> = {
     primaryLanguages: ['Armenian', 'Russian', 'English'],
     ussdShortcode: '*404#',
     smsSender: 'UNMAPPED',
-    mapCenter: { lat: 40.18, lng: 44.51, zoomLabel: 'Yerevan' },
+    // Backend ships armenia_urban_informal.json since alpha.4 (Claude 1 commit 33e13e4).
+    backendSupported: true,
     placeholder:
       'Պատմեք ձեր մասին ցանկացած լեզվով — ինչ եք անում, որտեղ, ինչ եք սովորել…',
-    sampleLabel: 'Try an Armenia sample',
+    sampleLabel: 'Try the Ani story',
     sample:
       'Իմ անունը Անի է, 31 տարեկան, Գյումրիից եմ։ Անգլերեն դասեր եմ տալիս տանը և շաբաթական ' +
       'մի քանի անգամ թարգմանում փոքր ընկերությունների համար։ Ունեմ Idram հաշիվ։ Ուզում եմ բացել իմ ' +

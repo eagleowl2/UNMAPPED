@@ -1,12 +1,11 @@
 import { QRCodeSVG } from 'qrcode.react';
 
 interface Props {
-  /** Opaque profile id; in production this becomes a deep-link / verifiable claim. */
   profileId: string;
   size?: number;
 }
 
-export function QrSimulation({ profileId, size = 96 }: Props) {
+export function QrSimulation({ profileId, size = 92 }: Props) {
   // Demo URL — replace with verifiable-credential resolver in v0.4.
   const url = `https://unmapped.demo/p/${profileId}`;
 
