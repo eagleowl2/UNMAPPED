@@ -31,14 +31,21 @@ class WageBand:
 _GH_WAGE_BANDS: dict[str, WageBand] = {
     "7421": WageBand(25,  38,  60,  "day", "GHS"),   # electronics repair
     "2512": WageBand(40,  80, 150,  "day", "GHS"),   # software dev
+    "2166": WageBand(35,  65, 110,  "day", "GHS"),   # graphic / digital design
     "5221": WageBand(20,  35,  55,  "day", "GHS"),   # retail/trading
-    "7436": WageBand(18,  30,  50,  "day", "GHS"),   # tailoring
+    "7436": WageBand(18,  30,  50,  "day", "GHS"),   # tailoring (legacy)
+    "7531": WageBand(18,  30,  50,  "day", "GHS"),   # tailor / dressmaker
     "8322": WageBand(22,  34,  48,  "day", "GHS"),   # transport/delivery
     "6110": WageBand(15,  25,  40,  "day", "GHS"),   # farming
+    "9211": WageBand(15,  25,  40,  "day", "GHS"),   # smallholder farmer
     "5141": WageBand(20,  32,  55,  "day", "GHS"),   # hairdressing
     "5322": WageBand(16,  28,  44,  "day", "GHS"),   # care work
     "2320": WageBand(25,  45,  70,  "day", "GHS"),   # teaching
     "3312": WageBand(30,  55,  90,  "day", "GHS"),   # financial services
+    "4211": WageBand(25,  42,  65,  "day", "GHS"),   # mobile-money agent
+    "5120": WageBand(18,  30,  50,  "day", "GHS"),   # cook / food vendor
+    "7112": WageBand(28,  45,  75,  "day", "GHS"),   # construction artisan
+    "9621": WageBand(15,  22,  35,  "day", "GHS"),   # head-load porter (kayayei)
     "DEFAULT": WageBand(18, 30, 50, "day", "GHS"),
 }
 
@@ -46,10 +53,19 @@ _AM_WAGE_BANDS: dict[str, WageBand] = {
     "2320": WageBand(2500, 4500, 8000, "hr", "AMD"),  # tutoring
     "2643": WageBand(3000, 5500, 9000, "hr", "AMD"),  # translation
     "2512": WageBand(3500, 7000,15000, "hr", "AMD"),  # software dev
+    "2166": WageBand(2500, 5000, 9000, "hr", "AMD"),  # graphic / digital design
+    "2411": WageBand(2500, 4500, 7500, "hr", "AMD"),  # accountant
     "5221": WageBand(1200, 2500, 4500, "hr", "AMD"),  # retail
-    "7436": WageBand(1000, 2000, 3500, "hr", "AMD"),  # tailoring
+    "7436": WageBand(1000, 2000, 3500, "hr", "AMD"),  # tailoring (legacy)
+    "7531": WageBand(1000, 2000, 3500, "hr", "AMD"),  # tailor / seamstress
+    "8322": WageBand(1500, 2800, 5000, "hr", "AMD"),  # driver / taxi
+    "5141": WageBand(1200, 2400, 4500, "hr", "AMD"),  # hairdressing
+    "5120": WageBand(1100, 2200, 4000, "hr", "AMD"),  # cook
     "3312": WageBand(2000, 4000, 7000, "hr", "AMD"),  # financial
+    "4211": WageBand(1500, 3000, 5500, "hr", "AMD"),  # mobile-money / Idram agent
     "6110": WageBand( 800, 1500, 3000, "hr", "AMD"),  # farming
+    "9211": WageBand( 800, 1500, 3000, "hr", "AMD"),  # smallholder farmer
+    "7112": WageBand(1800, 3500, 6000, "hr", "AMD"),  # construction artisan
     "DEFAULT": WageBand(1500, 3000, 5500, "hr", "AMD"),
 }
 
@@ -89,6 +105,38 @@ _NETWORK_ENTRIES: dict[tuple[str, str], tuple[str, float, float, str]] = {
         "GES community-teaching assistant programme + GhanaLearn platform",
         5.5600, -0.2000, "Accra"
     ),
+    ("GH", "4211"): (
+        "MTN MoMo / Vodafone Cash agent registration + GhIPSS",
+        5.5502, -0.2174, "Accra Mobile-Money Hub"
+    ),
+    ("GH", "5120"): (
+        "Ghana Tourism Authority chop-bar registry + FDA food licence",
+        5.5502, -0.2174, "Accra Food Vendors"
+    ),
+    ("GH", "7112"): (
+        "Construction Industry Development Authority (CIDA) artisan certification",
+        5.5500, -0.2050, "Accra Construction Hub"
+    ),
+    ("GH", "7531"): (
+        "NBSSI textile & garment SME incubator — Accra Fashion District",
+        5.5721, -0.2079, "Kantamanto"
+    ),
+    ("GH", "9211"): (
+        "Farmer registration via MoFA (Ghana Ministry of Food & Agriculture)",
+        5.5600, -0.2000, "Accra"
+    ),
+    ("GH", "9621"): (
+        "Kayayei Youth Association onboarding → MoMo savings group",
+        5.5530, -0.2080, "Agbogbloshie"
+    ),
+    ("GH", "5141"): (
+        "Ghana Hairdressers & Beauticians Association cooperative",
+        5.5600, -0.2000, "Accra Beauty District"
+    ),
+    ("GH", "2166"): (
+        "Ghana Tech Lab + Creative Industries Hub (designer fast-track)",
+        5.6037, -0.1870, "Accra Creative Hub"
+    ),
     ("GH", "DEFAULT"): (
         "NBSSI informal-sector SME onboarding → MTN MoMo business account",
         5.5502, -0.2174, "Accra"
@@ -108,6 +156,42 @@ _NETWORK_ENTRIES: dict[tuple[str, str], tuple[str, float, float, str]] = {
     ),
     ("AM", "5221"): (
         "Small-business e-registration (taxservice.am) + Idram merchant terminal",
+        40.1872, 44.5152, "Yerevan"
+    ),
+    ("AM", "7531"): (
+        "Craft cooperative (ArtBridge / Norategh) + Idram merchant account",
+        40.7894, 43.8475, "Gyumri Craft Hub"
+    ),
+    ("AM", "8322"): (
+        "Inasxarh taxi cooperative + sole-proprietor e-reg via taxservice.am",
+        40.1872, 44.5152, "Yerevan"
+    ),
+    ("AM", "5141"): (
+        "Beauty Workers Association Armenia + Idram merchant terminal",
+        40.1872, 44.5152, "Yerevan"
+    ),
+    ("AM", "5120"): (
+        "Small-business food-service e-reg (taxservice.am) + Idram PoS",
+        40.7894, 43.8475, "Gyumri"
+    ),
+    ("AM", "4211"): (
+        "Idram / Telcell agent registration + ABA Bank SME programme",
+        40.1872, 44.5152, "Yerevan"
+    ),
+    ("AM", "2411"): (
+        "Sole-proprietor e-registration via e-gov.am + ACBA accounting track",
+        40.1872, 44.5152, "Yerevan"
+    ),
+    ("AM", "2166"): (
+        "TUMO Centre for Creative Technologies + EIF digital creator grant",
+        40.1909, 44.5209, "Yerevan Tech Hub"
+    ),
+    ("AM", "7112"): (
+        "Armenia Construction Workers Union + Idram payroll account",
+        40.7894, 43.8475, "Gyumri"
+    ),
+    ("AM", "9211"): (
+        "Agricultural cooperative registration via MoA Armenia + loan programme",
         40.1872, 44.5152, "Yerevan"
     ),
     ("AM", "DEFAULT"): (
@@ -293,15 +377,25 @@ def _country_growth_channel(country: str, skills: list[dict[str, Any]]) -> str:
     top_code = skills[0].get("taxonomy_code", "")
     channels = {
         "GH": {
-            "7421": "mobile-repair SME registry",
+            "7421": "mobile-repair SME registry (NBSSI)",
             "2512": "GhanaTechLab digital entrepreneur track",
+            "2166": "Ghana Creative Industries Hub designer fast-track",
             "5221": "MoMo SME rails",
             "2320": "GhanaLearn educator platform",
+            "4211": "MTN MoMo / GhIPSS agent registration",
+            "7531": "NBSSI textile & garment SME incubator",
+            "9621": "Kayayei Youth Association savings cooperative",
+            "7112": "CIDA artisan certification track",
         },
         "AM": {
             "2320": "studio business via e-gov.am",
             "2643": "ATA translation cooperative",
             "2512": "EIF SME tech grant",
+            "2166": "TUMO Creative Technologies grant",
+            "2411": "ACBA accountant SME track",
+            "4211": "Idram agent + ABA Bank SME programme",
+            "7531": "ArtBridge craft cooperative",
+            "8322": "Inasxarh taxi cooperative",
         },
     }
     return channels.get(country.upper(), {}).get(top_code, "")

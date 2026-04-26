@@ -72,6 +72,168 @@
         "canonical_code": "3312",
         "framework": "ISCO-08"
       }
+    ],
+    "skill_alias_registry": [
+      {
+        "canonical_label": "Teacher / private tutor",
+        "aliases": [
+          "teacher", "tutor", "private tutor", "english tutor",
+          "math tutor", "ուսուցիչ", "ուսուցչուհի", "դասատու",
+          "կրկնուսույց", "учитель", "учительница", "репетитор",
+          "преподаватель"
+        ],
+        "isco_code": "2320",
+        "category": "care",
+        "base_weight": 0.88,
+        "language": "hy"
+      },
+      {
+        "canonical_label": "Translator / interpreter",
+        "aliases": [
+          "translator", "interpreter", "translation",
+          "թարգմանիչ", "թարգմանություն", "բանավոր թարգմանիչ",
+          "переводчик", "переводчица", "переводчиком", "переводчику",
+          "устный переводчик"
+        ],
+        "isco_code": "2643",
+        "category": "creative",
+        "base_weight": 0.88,
+        "language": "hy"
+      },
+      {
+        "canonical_label": "Software developer / programmer",
+        "aliases": [
+          "programmer", "developer", "software developer",
+          "software engineer", "coder", "coding",
+          "ծրագրավորող", "ծրագրային ինժեներ", "մշակող",
+          "программист", "разработчик", "софт-инженер"
+        ],
+        "isco_code": "2512",
+        "category": "digital",
+        "base_weight": 0.88,
+        "language": "hy"
+      },
+      {
+        "canonical_label": "Driver (taxi / private)",
+        "aliases": [
+          "driver", "taxi driver", "private driver",
+          "վարորդ", "տաքսու վարորդ",
+          "водитель", "таксист", "шофёр"
+        ],
+        "isco_code": "8322",
+        "category": "trade",
+        "base_weight": 0.84,
+        "language": "hy"
+      },
+      {
+        "canonical_label": "Tailor / seamstress",
+        "aliases": [
+          "tailor", "seamstress", "dressmaker",
+          "դերձակ", "կարուհի", "դերձակուհի",
+          "портной", "портниха", "портнихой", "портнихой", "швея", "шьёт", "шью"
+        ],
+        "isco_code": "7531",
+        "category": "creative",
+        "base_weight": 0.83,
+        "language": "hy"
+      },
+      {
+        "canonical_label": "Accountant / bookkeeper",
+        "aliases": [
+          "accountant", "bookkeeper", "finance",
+          "հաշվապահ", "գլխավոր հաշվապահ",
+          "бухгалтер", "главный бухгалтер"
+        ],
+        "isco_code": "2411",
+        "category": "financial",
+        "base_weight": 0.86,
+        "language": "hy"
+      },
+      {
+        "canonical_label": "Hairdresser / beautician",
+        "aliases": [
+          "hairdresser", "barber", "beautician", "stylist",
+          "վարսահարդար", "վարսավիր", "կոսմետոլոգ",
+          "парикмахер", "стилист", "косметолог"
+        ],
+        "isco_code": "5141",
+        "category": "creative",
+        "base_weight": 0.82,
+        "language": "hy"
+      },
+      {
+        "canonical_label": "Cook / food preparation worker",
+        "aliases": [
+          "cook", "chef", "food vendor",
+          "խոհարար", "խոհանոցի աշխատող",
+          "повар", "шеф-повар", "кулинар"
+        ],
+        "isco_code": "5120",
+        "category": "trade",
+        "base_weight": 0.82,
+        "language": "hy"
+      },
+      {
+        "canonical_label": "Retail trader / shopkeeper",
+        "aliases": [
+          "shopkeeper", "trader", "vendor", "salesperson",
+          "վաճառող", "խանութպան", "մանր առևտրով զբաղվող",
+          "продавец", "торговец", "продавщица"
+        ],
+        "isco_code": "5221",
+        "category": "trade",
+        "base_weight": 0.81,
+        "language": "hy"
+      },
+      {
+        "canonical_label": "Mobile money / digital wallet agent",
+        "aliases": [
+          "Idram", "Idram agent", "mobile money agent",
+          "Telcell", "EasyPay", "digital wallet agent",
+          "Իդրամ", "Իդրամ գործակալ",
+          "Идрам", "агент Идрам"
+        ],
+        "isco_code": "4211",
+        "category": "financial",
+        "base_weight": 0.86,
+        "language": "hy"
+      },
+      {
+        "canonical_label": "Graphic / digital designer",
+        "aliases": [
+          "graphic designer", "designer", "logo designer",
+          "դիզայներ", "գրաֆիկական դիզայներ",
+          "дизайнер", "графический дизайнер"
+        ],
+        "isco_code": "2166",
+        "category": "creative",
+        "base_weight": 0.82,
+        "language": "hy"
+      },
+      {
+        "canonical_label": "Construction artisan",
+        "aliases": [
+          "mason", "carpenter", "electrician", "plumber", "welder",
+          "որմնադիր", "ատաղձագործ", "էլեկտրիկ", "սանհանգուցավոր",
+          "каменщик", "плотник", "электрик", "сантехник", "сварщик"
+        ],
+        "isco_code": "7112",
+        "category": "trade",
+        "base_weight": 0.83,
+        "language": "hy"
+      },
+      {
+        "canonical_label": "Smallholder farmer / agro worker",
+        "aliases": [
+          "farmer", "smallholder", "agricultural worker",
+          "ֆերմեր", "գյուղատնտես", "ագրարային աշխատող",
+          "фермер", "агроном", "сельхоз работник"
+        ],
+        "isco_code": "9211",
+        "category": "agricultural",
+        "base_weight": 0.80,
+        "language": "hy"
+      }
     ]
   },
   "confidence_priors": {

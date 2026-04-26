@@ -1,5 +1,5 @@
 """
-Skills Signal Engine — Evidence Parser (v0.3.0).
+Skills Signal Engine — Evidence Parser (v0.3.1).
 
 Accepts one chaotic unstructured text input (any language) and produces:
   USER entity + N SKILL entities + VSS list + HumanLayer (profile card format).
@@ -21,8 +21,17 @@ from app.core.bayesian import compute_confidence
 from app.core.country_profile import (
     get_confidence_priors,
     get_local_skill_overrides,
+    get_skill_alias_registry,
     is_zero_credential_context,
     load_country_profile,
+)
+from app.core.multilingual import (
+    AliasHit,
+    AliasMatcher,
+    MultilingualEmbedder,
+    SemanticHit,
+    candidate_phrases,
+    semantic_match,
 )
 from app.core.taxonomy import TaxonomyGraph
 
@@ -196,6 +205,7 @@ class EvidenceParser:
         country_code: str = "GH",
         context_tag: str = "urban_informal",
         spacy_model: str = "xx_ent_wiki_sm",
+        enable_embedder: bool = True,
     ) -> None:
         self.country_code = country_code.upper()
         self.context_tag = context_tag
@@ -205,6 +215,9 @@ class EvidenceParser:
         self._taxonomy = TaxonomyGraph()
         self._taxonomy.register_local_overrides(get_local_skill_overrides(self.profile))
         self._nlp = self._load_spacy(spacy_model)
+        self._alias_registry = get_skill_alias_registry(self.profile)
+        self._alias_matcher = AliasMatcher(self._alias_registry)
+        self._enable_embedder = enable_embedder
 
     # ------------------------------------------------------------------
     # Public API
@@ -411,8 +424,44 @@ class EvidenceParser:
         return found
 
     def _extract_skills(self, text: str) -> list[ExtractedSkill]:
-        found: dict[str, ExtractedSkill] = {}
+        """Multi-stage extraction:
 
+        1. Locale alias_registry (Twi / Ga / Armenian / Russian / English) —
+           highest precision, primary path for low-resource languages.
+        2. English + Armenian regex patterns — broad coverage of common
+           informal-economy verbs/nouns.
+        3. Multilingual embedder (E5-small / BGE-M3) — semantic
+           paraphrase fallback against canonical skill labels.
+        4. Noun-phrase taxonomy crosswalk — final structural fallback.
+
+        Earlier stages "lock in" canonical_label → skill mapping so later
+        stages cannot duplicate the same skill under a different name.
+        """
+        found: dict[str, ExtractedSkill] = {}
+        experience_signals_text, extra_text = self._extract_experience(text)
+
+        # Stage 1 — locale alias registry
+        for hit in self._alias_matcher.find_all(text):
+            label = hit.canonical_label
+            if label in found:
+                continue
+            phrase = self._surrounding_phrase(text, hit.surface_form)
+            found[label] = ExtractedSkill(
+                skill_id=f"skl_{uuid.uuid4()}",
+                label=label,
+                category=hit.category,
+                source_phrases=[phrase or hit.surface_form],
+                experience_signals=list(set(experience_signals_text)),
+                evidence_weight=hit.base_weight,
+                extra_signals={
+                    **extra_text,
+                    "alias_match": hit.matched_alias,
+                    "alias_lang": hit.language_hint,
+                },
+                taxonomy_code=hit.isco_code,
+            )
+
+        # Stage 2 — English + Armenian regex
         all_patterns = list(_SKILL_PATTERNS)
         if _ARMENIAN_SCRIPT_RE.search(text):
             all_patterns += _ARMENIAN_SKILL_PATTERNS
@@ -425,26 +474,29 @@ class EvidenceParser:
                 self._get_context_window(text, m.start(), m.end())
                 for m in pattern.finditer(text)
             ]
-            experience_signals, extra = self._extract_experience(text)
 
             if label in found:
                 existing = found[label]
                 existing.source_phrases.extend(source_phrases)
-                existing.experience_signals.extend(experience_signals)
-                existing.evidence_weight = min(existing.evidence_weight + 0.05, 1.0)
+                existing.experience_signals.extend(experience_signals_text)
+                existing.evidence_weight = min(existing.evidence_weight + 0.03, 1.0)
             else:
                 found[label] = ExtractedSkill(
                     skill_id=f"skl_{uuid.uuid4()}",
                     label=label,
                     category=category,
                     source_phrases=source_phrases,
-                    experience_signals=list(set(experience_signals)),
+                    experience_signals=list(set(experience_signals_text)),
                     evidence_weight=base_weight,
-                    extra_signals=extra,
+                    extra_signals=dict(extra_text),
                     taxonomy_code=isco_code,
                 )
 
-        # NLP noun-phrase fallback → taxonomy crosswalk
+        # Stage 3 — multilingual embedder (semantic paraphrase)
+        if self._enable_embedder and self._alias_registry:
+            self._apply_semantic_stage(text, found, experience_signals_text, extra_text)
+
+        # Stage 4 — noun-phrase taxonomy crosswalk
         for phrase in self._extract_noun_phrases(text):
             result = self._taxonomy.crosswalk(phrase)
             if result and result.primary.label not in found:
@@ -460,6 +512,53 @@ class EvidenceParser:
                 )
 
         return list(found.values())
+
+    def _apply_semantic_stage(
+        self,
+        text: str,
+        found: dict[str, "ExtractedSkill"],
+        experience_signals_text: list[str],
+        extra_text: dict[str, Any],
+    ) -> None:
+        """Run the multilingual embedder against candidate phrases."""
+        embedder = MultilingualEmbedder.get()
+        if not embedder.available:
+            return
+        phrases = candidate_phrases(text, max_words=4)
+        if not phrases:
+            return
+        # Cap to keep CPU inference snappy on small inputs.
+        phrases = phrases[:64]
+        hits: list[SemanticHit] = semantic_match(
+            phrases, self._alias_registry,
+        )
+        for hit in hits:
+            label = hit.canonical_label
+            if label in found:
+                continue
+            found[label] = ExtractedSkill(
+                skill_id=f"skl_{uuid.uuid4()}",
+                label=label,
+                category=hit.category,
+                source_phrases=[hit.surface_form],
+                experience_signals=list(set(experience_signals_text)),
+                evidence_weight=min(hit.base_weight, 0.75) * hit.score,
+                extra_signals={
+                    **extra_text,
+                    "semantic_score": hit.score,
+                    "semantic_phrase": hit.surface_form,
+                },
+                taxonomy_code=hit.isco_code,
+            )
+
+    @staticmethod
+    def _surrounding_phrase(text: str, surface: str, window: int = 40) -> str:
+        if not surface:
+            return ""
+        idx = text.lower().find(surface.lower())
+        if idx < 0:
+            return surface
+        return EvidenceParser._get_context_window(text, idx, idx + len(surface), window)
 
     def _extract_experience(self, text: str) -> tuple[list[str], dict[str, Any]]:
         signals: list[str] = []
@@ -568,7 +667,7 @@ class EvidenceParser:
                 "taxonomy_crosswalk": _crosswalk_to_dict(crosswalk_result),
                 "country_code": self.country_code,
                 "processing_meta": {
-                    "parser_version": "v0.3.0",
+                    "parser_version": "v0.3.1",
                     "model_id": "unmapped-sse-parser",
                     "detected_language": user.languages[0] if user.languages else "en",
                 },
